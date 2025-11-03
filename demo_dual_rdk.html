@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+		<script src="https://unpkg.com/jspsych@8"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych-contrib/plugin-rdk@2.0.0"></script>
+		<link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
+    <style>
+      .response-circle {
+        width: 300px;
+        height: 300px;
+        border: 2px solid black;
+        border-radius: 50%; /* これで正円になります */
+        position: relative;   /* 中のバーを配置するときの基準点になります */
+        margin: 20px auto;  /* 上下のマージンと、左右中央揃え */
+      }
+      .rotating-bar {
+        width: 10px;          /* バーの幅 */
+        height: 250px;        /* バーの長さ（円の半径） */
+        background-color: black;
+        position: absolute;   /* 円の中心を基準に配置します */
+        top: 25px;             /* 円の上端から配置を開始 */
+        left: 145px;          /* 円の中心に配置 (円の幅300/2 - バーの幅10/2) */
+        transform-origin: center center; /* バーの下端（bottom）の中央（center）を回転軸にします */
+      }
+    </style>
+  </head>
+  <body></body>
+  <script>
+    console.log("--- スクリプトの読み込み開始 ---");
+
+		var jsPsych = initJsPsych({
+			on_finish: function() {
+				jsPsych.data.displayData();
+			}
+		});
+
+    var timeline = [];
+
+    const welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "Welcome to the experiment. Press any key to begin."
+    };
+    timeline.push(welcome);
+
+    const fixation = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: '<div style="font-size:60px;">+</div>',
+      choices: "NO_KEYS",
+      trial_duration: 1000
+    };
+
+    var rdk_conditions = [
+      {
+        dots: [100, 70],
+        directions: [0, 90]
+      },
+      {
+        dots: [70, 100],
+        directions: [90, 0]
+      },
+      {
+        dots: [50, 50],
+        directions: [30, 300]
+      },
+      {
+        dots: [100, 50],
+        directions: [30, 300] // 黒色ドットが明らかに多いから，バーは動かさずに0度（currentAngle = 90）になるはず
+      }
+    ];
+
+    // const dual_rdk_trial_1 = {
+    //   type: jsPsychRdk,
+    //   coherence: 1.0,
+    //   correct_choice: 'a',
+
+    //   trial_duration: 2000,
+    //   response_ends_trial: true,
+    //   background_color: 'grey',
+
+    //   number_of_apertures: 2,
+    //   border: true,
+    //   border_color: "black",
+    //   border_thickness: 2,
+    //   aperture_width: 400,
+    //   aperture_height: 400,
+    //   RDK_type: 3,
+    //   dot_color: ['black', 'white'],
+
+    //   number_of_dots: [50, 10],
+    //   coherent_direction: [0, 90]
+
+    // };
+    // timeline.push(fixation, dual_rdk_trial_1);
+
+    // const dual_rdk_trial_2 = {
+    //   type: jsPsychRdk,
+    //   coherence: 1.0,
+    //   correct_choice: 'a',
+
+    //   trial_duration: 2000,
+    //   response_ends_trial: true,
+    //   background_color: 'grey',
+
+    //   number_of_apertures: 2,
+    //   border: true,
+    //   border_color: "black",
+    //   border_thickness: 2,
+    //   aperture_width: 400,
+    //   aperture_height: 400,
+    //   RDK_type: 3,
+    //   dot_color: ['black', 'white'],
+
+    //   number_of_dots: [30, 20],
+    //   coherent_direction: [90, 0],
+      
+    // };
+    // timeline.push(fixation, dual_rdk_trial_2);
+
+
+    //------ RDK試行のテンプレート ------//
+    var rdk_template = {
+      type: jsPsychRdk,
+      number_of_dots: jsPsych.timelineVariable('dots'),
+      coherent_direction: jsPsych.timelineVariable('directions'),
+      // --- 以下は共通パラメータ ---
+      coherence: 1.0,
+      correct_choice: ['a'],
+      trial_duration: 2000,
+      response_ends_trial: false, // 時間経過で終了させる
+      background_color: 'grey',
+      number_of_apertures: 2,
+      border: true,
+      border_color: "black",
+      border_thickness: 2,
+      aperture_width: 400,
+      aperture_height: 400,
+      RDK_type: 3,
+      dot_color: ['black', 'white']
+    };
+
+    //------ キーボードを使用してバーを回転させる試行 ------//
+    let currentAngle = 0; // 角度を保存する変数を試行の外で定義
+
+    const direction_response_trial = {
+      type: jsPsychHtmlKeyboardResponse,
+      // HTMLで円とバーの骨組みを定義
+      stimulus: `
+        <p>rotate the bar by using the left and right arrow keys.</p>
+        <p>when you are determined, press the Enter key.</p>
+        <div class="response-circle">
+          <div id="bar" class="rotating-bar"></div>
+        </div>
+      `,
+      choices: ['Enter'], // Enterキーで試行を終了
+      on_load: function() {
+        currentAngle = 90; // 試行開始時に角度をリセット
+        const bar = document.getElementById('bar');
+        bar.style.transform = `rotate(${currentAngle}deg)`; // 初期角度をセット
+
+        // キーボードイベントを監視する関数
+        const keydown_listener = function(e) {
+          if (e.key === 'ArrowLeft') {
+            currentAngle -= 2; // 回転の刻み幅
+          } else if (e.key === 'ArrowRight') {
+            currentAngle += 2; // 回転の刻み幅
+          }
+          bar.style.transform = `rotate(${currentAngle}deg)`;
+        }
+        // イベントリスナーを登録
+        window.addEventListener('keydown', keydown_listener);
+
+        // この試行が終わるときにイベントリスナーを解除する（重要）
+        jsPsych.pluginAPI.getKeyboardResponse({
+          callback_function: () => {
+            window.removeEventListener('keydown', keydown_listener);
+          },
+          valid_responses: ['Enter'],
+          rt_method: 'performance',
+          persist: false
+        });
+      },
+      on_finish: function(data) {
+        // 試行終了時の最終的な角度をデータとして保存
+        data.response_angle = currentAngle;
+      }
+    };
+    // timeline.push(fixation, direction_response_trial);
+
+    var rdk_procedure = {
+      timeline: [fixation, rdk_template, direction_response_trial],
+      timeline_variables: rdk_conditions,
+      randomize_order: true,
+      repetitions: 2
+    };
+
+    timeline.push(rdk_procedure);
+    jsPsych.run(timeline);
+
+    console.log("--- jsPsych.run() が呼び出された ---");
+  </script>
+</html>
