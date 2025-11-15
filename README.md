@@ -1,2 +1,89 @@
 # dual-rdk
-Two Random Dot Kinematograms (RDKs) are presented simultaneously. One consists of white dots moving coherently in one direction, and the other consists of black dots moving coherently in another direction. Participants are asked to indicate the motion direction of the dot group that contains a larger number of dots by rotating a response bar.
+Dual-RDK Reward Learning Task（概要）
+
+本タスクは、2種類のRDK刺激（白・黒）を同時呈示し、
+報酬が得られやすい方向（High-reward range） と
+報酬が得られにくい方向（Low-reward range） が
+色ごとに潜在的に埋め込まれた構造を参加者が学習する過程を測定することを目的としています。
+参加者には「ドット数が多いと感じた色の方向を回答する」という名目を与えていますが、
+実際にはドット数は同じで、方向に対して割り当てられた隠れた報酬構造が学習対象となります。
+
+⸻
+
+目的
+	•	潜在的な方向—報酬構造の学習（implicit reward learning）がどのように形成されるかを測定する
+	•	Attentional lapses / Out-of-the-zone (OOZ) が、この潜在学習にどのように影響するかを検証する
+	•	方向報酬構造の統計的パターンを複数回のセッションを通して学習するプロセスを観察する
+	•	色（白/黒）×報酬（High/Low） の4条件を分離した状態で、
+学習の非対称性・バイアス・戦略の変化を明確に分析可能にする
+
+⸻
+
+タスク設計（合意済みの仕様）
+
+● 1. 四つの不重複区間（テンプレート）
+
+テンプレート空間（0–360°）に以下の 4つの非重複の方向区間をあらかじめ定義する：
+	•	W_H：White High-reward range
+	•	W_L：White Low-reward range
+	•	B_H：Black High-reward range
+	•	B_L：Black Low-reward range
+
+これら4区間は互いに一切重ならないように構成し、
+セッションを通してこの構造は変わらない（＝統計構造として保持）。
+
+⸻
+
+● 2. セッションごとのランダム回転（φ-rotation）
+
+各セッションでは、テンプレート全体にランダムな角度 φ を加える：
+
+\theta' = (\theta + \varphi) \mod 360
+
+これにより
+	•	絶対方位による学習（慣れ）を防ぐ
+	•	しかし 高報酬／低報酬の相対構造はセッション内で維持
+
+という性質が得られる。
+
+⸻
+
+● 3. 各 trial の方向生成
+
+ある trial において「白が high / 黒が low」などの組み合わせが選ばれた場合：
+	•	白ドット方向：対応する区間（例：W_H）から一様サンプリング
+	•	黒ドット方向：対応する区間（例：B_L）から一様サンプリング
+	•	必要に応じて、両方向が90°以上離れるようリジェクトサンプリングを実行
+	•	これにより、方向識別の明確性を確保しつつ、
+high/low の構造的非重複性を保持する
+
+⸻
+
+● 4. 参加者の課題
+	•	同時に呈示された白・黒の RDK を見て
+「ドット数が多いと感じた色の方向」にバーを合わせて回答する
+	•	ドット数は常に同数 → 参加者は本質的には方向情報を利用する
+
+⸻
+
+● 5. 報酬構造
+	•	High-reward 範囲内の色を回答すると、角度誤差 AE に基づく連続報酬を付与
+	•	例：
+reward = \max\{0, \lfloor 10 (1 - |AE|/45^\circ) \rfloor\}
+	•	Low-reward 色を答えた場合は報酬 0
+	•	AE は mod 360 の円周距離で計算する
+
+⸻
+
+期待される結果
+	•	参加者は表面的な「多い方を選ぶ」教示に従いながら、
+潜在的な方向—報酬構造を徐々に学習していく
+	•	セッションを跨いだ φ-rotation 生成により、
+絶対角度学習ではなく相対構造の統計学習が促進される
+	•	Attentional lapses / OOZ 状態の頻度によって：
+	•	low→high の統計的遷移
+	•	反応角度の精度
+	•	報酬勾配の学習率
+が変化することが期待される
+	•	色×報酬の 4 条件（W_H, W_L, B_H, B_L）の分離により、
+色バイアス・方向バイアス・注意状態の影響を独立に推定可能
