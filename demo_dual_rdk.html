@@ -7,26 +7,55 @@
     <script src="https://unpkg.com/@jspsych-contrib/plugin-rdk@2.0.0"></script>
 		<link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
     <style>
+      .response-container {
+        width: 400px; /* RDKのaperture_widthと合わせる */
+        height: 400px; /* RDKのaperture_heightと合わせる */
+        position: relative; /* 中の要素を配置する基準点 */
+        margin: auto; /* jsPsych表示領域内での中央揃え */
+      }
       .response-circle {
         width: 300px;
         height: 300px;
-        border: 2px solid black;
+        /* border: 2px solid black; */
         border-radius: 50%; /* これで正円になります */
         position: relative;   /* 中のバーを配置するときの基準点になります */
         margin: 20px auto;  /* 上下のマージンと、左右中央揃え */
       }
+      .response-circle::after {
+        content: '';
+        position: absolute;
+        /* 円の中心に配置 */
+        top: 42%;
+        left: 50%;
+        /* 要素自体の中心が↑の座標に来るように調整 */
+        transform: translate(-50%, -50%);
+        width: 10px;  /* 点の直径 */
+        height: 10px; /* 点の直径 */
+        background-color: red;
+        border-radius: 50%; /* 正円にする */
+        z-index: 10; /* 念のため、矢印より手前に表示 */
+      }
       .rotating-bar {
-        width: 10px;          /* バーの幅 */
-        height: 250px;        /* バーの長さ（円の半径） */
+        width: 30px;          /* 矢印の幅を少し広げます */
+        height: 250px;        /* 矢印の長さを円の半径に合わせます */
         background-color: black;
-        position: absolute;   /* 円の中心を基準に配置します */
-        top: 25px;             /* 円の上端から配置を開始 */
-        left: 145px;          /* 円の中心に配置 (円の幅300/2 - バーの幅10/2) */
-        transform-origin: center center; /* バーの下端（bottom）の中央（center）を回転軸にします */
+        position: absolute;
+        top: 0;               /* 円の上端から配置を開始 */
+        left: 135px;          /* (円の幅300/2 - 矢印の幅30/2) */
+        transform-origin: center center; /* 回転軸を矢印の根本の中央に設定 */
+        clip-path: polygon(
+          50% 0%,    /* 矢印の先端 */
+          100% 15%,  /* 矢じりの右肩 */
+          60% 15%,   /* 軸の右上 */
+          60% 100%,  /* 軸の右下 */
+          40% 100%,  /* 軸の左下 */
+          40% 15%,   /* 軸の左上 */
+          0% 15%     /* 矢じりの左肩 */
+        );
       }
     </style>
   </head>
-  <body></body>
+  <body bgcolor="#AAA"></body>
   <script>
     console.log("--- スクリプトの読み込み開始 ---");
 
@@ -46,27 +75,122 @@
 
     const fixation = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: '<div style="font-size:60px;">+</div>',
+      stimulus: '<div class="fixation" style="font-size: 60px;">+</div>',
       choices: "NO_KEYS",
       trial_duration: 1000
     };
 
     var rdk_conditions = [
+      //----- high probability trials -----//
+      // {
+      //   dots: [100, 70],
+      //   directions: [30, 90],
+      //   coherences: [0.7, 0]
+      // },
+      // {
+      //   dots: [100, 70],
+      //   directions: [60, 90],
+      //   coherences: [0.7, 0]
+      // },
+      //       {
+      //   dots: [100, 70],
+      //   directions: [30, 90],
+      //   coherences: [0.7, 0]
+      // },
+      // {
+      //   dots: [100, 70],
+      //   directions: [60, 90],
+      //   coherences: [0.7, 0]
+      // },
+      // {
+      //   dots: [70, 100],
+      //   directions: [90, 330],
+      //   coherences: [0.0, 0.7]
+      // },
+      // {
+      //   dots: [70, 100],
+      //   directions: [90, 300],
+      //   coherences: [0, 0.7]
+      // },
+      // {
+      //   dots: [70, 100],
+      //   directions: [90, 330],
+      //   coherences: [0.0, 0.7]
+      // },
+      // {
+      //   dots: [70, 100],
+      //   directions: [90, 300],
+      //   coherences: [0, 0.7]
+      // },
+      // //----- low probability trials -----//
+      // {
+      //   dots: [100, 70],
+      //   directions: [330, 90],
+      //   coherences: [0.7, 0]
+      // },
+      // {
+      //   dots: [70, 100],
+      //   directions: [90, 30],
+      //   coherences: [0, 0.7]
+      // }
+
+
+
+
+
+    //------- 白色ドットの方向が黒色に対して+Δθから−Δθかで場合分け-------//
+    //------- さらに，ドットの移動速度も変化させる　-------//
+
+      // {
+      //   dots: [100, 100],
+      //   directions: [30, 90],     //CW
+      //   distances: [1, 2]   //WhiteFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [60, 90],     //CW
+      //   distances: [1, 2]   //WhiteFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [30, 90],     //CW
+      //   distances: [1, 2]   //WhiteFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [60, 90],     //CW
+      //   distances: [1, 2]   //WhiteFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [90, 330],    //CCW
+      //   distances: [2, 1]   //BlackFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [90, 300],    //CCW
+      //   distances: [2, 1]   //BlackFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [90, 330],    //CCW
+      //   distances: [2, 1]   //BlackFaster
+      // },
+      // {
+      //   dots: [100, 100],
+      //   directions: [90, 300],    //CCW
+      //   distances: [2, 1]   //BlackFaster
+      // },
+      //----- low probability trials -----//
       {
-        dots: [100, 70],
-        directions: [0, 90]
+        dots: [100, 100],
+        directions: [330, 90],    //CW
+        distances: [2, 1]   //BlackFaster
       },
       {
-        dots: [70, 100],
-        directions: [90, 0]
-      },
-      {
-        dots: [50, 50],
-        directions: [30, 300]
-      },
-      {
-        dots: [100, 50],
-        directions: [30, 300] // 黒色ドットが明らかに多いから，バーは動かさずに0度（currentAngle = 90）になるはず
+        dots: [100, 100],
+        directions: [90, 30],     //CCW
+        distances: [1, 2]   //WhiteFaster
       }
     ];
 
@@ -76,20 +200,36 @@
       type: jsPsychRdk,
       number_of_dots: jsPsych.timelineVariable('dots'),
       coherent_direction: jsPsych.timelineVariable('directions'),
+      move_distance: jsPsych.timelineVariable('distances'),
       // --- 以下は共通パラメータ ---
-      coherence: 1.0,
+      // coherence: [0.7, 0.1],
       correct_choice: ['a'],
       trial_duration: 2000,
       response_ends_trial: false, // 時間経過で終了させる
-      background_color: 'grey',
+      background_color: '#AAA',
       number_of_apertures: 2,
       border: true,
-      border_color: "black",
+      border_color: "transparent",
       border_thickness: 2,
-      aperture_width: 400,
-      aperture_height: 400,
+      aperture_width: 300,
+      aperture_height: 300,
       RDK_type: 3,
-      dot_color: ['black', 'white']
+      dot_color: ['black', 'white'],
+      coherence: [1.0, 1.0],
+      on_finish: function(data) {
+        const distances = data.move_distance;
+        const directions = data.coherent_direction;
+        const colors = ['black', 'white'];
+
+        // coherenceが0.5より大きい方（要するに0.7の方）のインデックスを見つける
+        const target_index = distances[0] > 1.5 ? 0 : 1;
+        // const max_coherence = Math.max(...coherences);
+        // const target_index = coherences.indexOf(max_coherence);
+
+        // インデックスを使って、ターゲットの色と角度を決定
+        data.target_group = colors[target_index];
+        data.target_direction = directions[target_index];
+      }
     };
 
     //------ キーボードを使用してバーを回転させる試行 ------//
@@ -101,32 +241,98 @@
       stimulus: `
         <p>rotate the bar by using the left and right arrow keys.</p>
         <p>when you are determined, press the Enter key.</p>
-        <div class="response-circle">
-          <div id="bar" class="rotating-bar"></div>
+        <div class="response-container">
+          <div class="response-circle">
+            <div id="bar" class="rotating-bar"></div>
+          </div>
         </div>
       `,
       choices: ['Enter'], // Enterキーで試行を終了
       on_load: function() {
-        currentAngle = 90; // 試行開始時に角度をリセット
+        // --- 状態管理用の変数を定義 ---
+        let currentAngle = 90;
         const bar = document.getElementById('bar');
-        bar.style.transform = `rotate(${currentAngle}deg)`; // 初期角度をセット
+        bar.style.transform = `rotate(${currentAngle}deg)`;
 
-        // キーボードイベントを監視する関数
-        const keydown_listener = function(e) {
-          if (e.key === 'ArrowLeft') {
-            currentAngle -= 2; // 回転の刻み幅
-          } else if (e.key === 'ArrowRight') {
-            currentAngle += 2; // 回転の刻み幅
+        const keysDown = { ArrowLeft: false, ArrowRight: false };
+        let holdStartTime = null;
+        let animationFrameId = null;
+        let isTap = false;
+
+        // --- アニメーションループ関数 ---
+        const rotateBar = () => {
+          const HOLD_DURATION_FOR_ACCEL = 2000; // 2000ms長押しで加速
+          const time_held = Date.now() - holdStartTime;
+
+          // 長押しが確定したら、タップフラグを折る
+          if (time_held > 150) { // 150ms以上押されていたら長押しとみなす
+            isTap = false;
           }
-          bar.style.transform = `rotate(${currentAngle}deg)`;
-        }
-        // イベントリスナーを登録
-        window.addEventListener('keydown', keydown_listener);
 
-        // この試行が終わるときにイベントリスナーを解除する（重要）
+          // 経過時間に応じて回転角度を決定
+          const step = time_held > HOLD_DURATION_FOR_ACCEL ? 1 : 1;
+
+          if (keysDown.ArrowLeft) {
+            currentAngle -= step;
+          }
+          if (keysDown.ArrowRight) {
+            currentAngle += step;
+          }
+
+          bar.style.transform = `rotate(${currentAngle}deg)`;
+
+          // いずれかのキーが押されている限り、次のフレームを予約
+          if (keysDown.ArrowLeft || keysDown.ArrowRight) {
+            animationFrameId = requestAnimationFrame(rotateBar);
+          } else {
+            animationFrameId = null; // ループ停止
+          }
+        };
+
+        // --- キーボードイベントリスナー ---
+        const keydown_listener = (e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          if (e.repeat) return; // キーリピートによる連続発火を無視
+
+          keysDown[e.key] = true;
+          isTap = true; // まずはタップの可能性ありと設定
+
+          // まだアニメーションループが動いていなければ、開始する
+          if (!animationFrameId) {
+            holdStartTime = Date.now();
+            animationFrameId = requestAnimationFrame(rotateBar);
+          }
+        };
+
+        const keyup_listener = (e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+
+          keysDown[e.key] = false;
+
+          // タップだった場合の処理
+          if (isTap) {
+            if (e.key === 'ArrowLeft') {
+              currentAngle -= 1;
+            } else if (e.key === 'ArrowRight') {
+              currentAngle += 1;
+            }
+            bar.style.transform = `rotate(${currentAngle}deg)`;
+          }
+          isTap = false; // タップ処理が終わったのでフラグをリセット
+        };
+
+        // --- イベントリスナーの登録と解除 ---
+        window.addEventListener('keydown', keydown_listener);
+        window.addEventListener('keyup', keyup_listener);
+
         jsPsych.pluginAPI.getKeyboardResponse({
           callback_function: () => {
+            // 試行終了時に必ずリスナーを解除し、アニメーションを停止する
             window.removeEventListener('keydown', keydown_listener);
+            window.removeEventListener('keyup', keyup_listener);
+            if (animationFrameId) {
+              cancelAnimationFrame(animationFrameId);
+            }
           },
           valid_responses: ['Enter'],
           rt_method: 'performance',
@@ -134,17 +340,43 @@
         });
       },
       on_finish: function(data) {
-        // 試行終了時の最終的な角度をデータとして保存
-        data.response_angle = currentAngle;
+        // 1. 回答された角度（バーの座標系）を記録
+        data.response_angle_css = currentAngle;
+
+        // 2. 回答角度をRDKの座標系に変換
+        // 変換式: theta_rdk = (450 - theta_bar) % 360
+        const converted_response_angle = (450 - currentAngle) % 360;
+        data.response_angle_rdk = converted_response_angle;
+
+        // 3. 直前のRDK試行から正解角度を取得
+        const last_trial_data = jsPsych.data.get().last(1).values()[0];
+        const target_direction = last_trial_data.target_direction;
+        data.target_direction = target_direction;
+
+        // 4. 誤差を計算 (-180° から 180° の範囲で)
+        if (typeof target_direction !== 'undefined') {
+          let error = converted_response_angle - target_direction;
+          if (error > 180) error -= 360;
+          if (error < -180) error += 360;
+          data.angular_error = error;
+        }
       }
     };
     // timeline.push(fixation, direction_response_trial);
 
+    const reward_feedback_trial = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `<p>You got it!</p>
+                 <p style="color: #00FF00;">Your reward: 10 points</p>`,
+      choices: "NO_KEYS",
+      trial_duration: 2000
+    };
+
     var rdk_procedure = {
-      timeline: [fixation, rdk_template, direction_response_trial],
+      timeline: [fixation, rdk_template, direction_response_trial, reward_feedback_trial],
       timeline_variables: rdk_conditions,
       randomize_order: true,
-      repetitions: 2
+      repetitions: 1
     };
 
     timeline.push(rdk_procedure);

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+		<script src="https://unpkg.com/jspsych@8"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych-contrib/plugin-rdk@2.0.0"></script>
+		<link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
+    <style>
+      .response-container {
+        width: 400px;
+        height: 400px;
+        position: relative;
+        margin: auto;
+      }
+      .response-circle {
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        position: relative;
+        margin: 20px auto;
+      }
+      .response-circle::after {
+        content: '';
+        position: absolute;
+        top: 42%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 10px;
+        height: 10px;
+        background-color: red;
+        border-radius: 50%;
+        z-index: 10;
+      }
+      .rotating-bar {
+        width: 30px;
+        height: 250px;
+        background-color: black;
+        position: absolute;
+        top: 0;
+        left: 135px;
+        transform-origin: center center;
+        clip-path: polygon(
+          50% 0%,
+          100% 15%,
+          60% 15%,
+          60% 100%,
+          40% 100%,
+          40% 15%,
+          0% 15%
+        );
+      }
+    </style>
+    <title>Experiment 1</title>
+  </head>
+  <body bgcolor="#AAA"></body>
+  <script>
+    console.log("--- スクリプトの読み込み開始 ---");
+
+		var jsPsych = initJsPsych({
+			on_finish: function() {
+          const pad2 = (n) => String(n).padStart(2, '0');
+          const now = new Date();
+          const stamp = [
+            now.getFullYear(),
+            pad2(now.getMonth() + 1),
+            pad2(now.getDate()),
+            pad2(now.getHours()),
+            pad2(now.getMinutes())
+          ].join('');
+        // --- CSVをその場でダウンロード（ブラウザが保存ダイアログを開く） ---
+        jsPsych.data.get().localSave('csv', `experiment_data_${stamp}.csv`);
+
+        // --- 追加で手動ダウンロード用リンクを表示 ---
+        const csvString = jsPsych.data.get().csv();
+        const blob = new Blob([csvString], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'experiment_data.csv';
+        link.innerText = 'Download CSV again';
+        link.style.display = 'block';
+        link.style.margin = '20px';
+        document.body.appendChild(link);
+
+        jsPsych.data.displayData();
+			}
+		});
+
+    var timeline = [];
+    let lastRdkResult = null;
+
+    // #region ----- ウェルカムメッセージと固定視標と休憩 -----
+    const welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "Welcome to the experiment. Press any key to begin."
+    };
+
+    const fixation = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: '<div class="fixation" style="font-size: 60px;">+</div>',
+      choices: "NO_KEYS",
+      trial_duration: 1000
+    };
+
+    const breaktime = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div id="break-timer" style="font-size: 24px; text-align: center;">
+          <p>Take a short break! You have 30 seconds.</p>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: null,
+      on_load: () => {
+        let remaining = 30;
+        let readyForKey = false;
+        const el = document.getElementById('break-timer');
+
+        const render = () => {
+          const prompt = readyForKey ? '<p>Press any key to continue.</p>' : '';
+          el.innerHTML = `<p>Break time: ${remaining} seconds</p>${prompt}`;
+        };
+
+        render();
+        const intervalId = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            remaining = 0;
+            readyForKey = true;
+            clearInterval(intervalId);
+            render();
+            jsPsych.pluginAPI.getKeyboardResponse({
+              callback_function: (info) => {
+                clearInterval(intervalId);
+                jsPsych.finishTrial({ key_press: info.key, rt: info.rt });
+              },
+              valid_responses: "ALL_KEYS",
+              rt_method: 'performance',
+              persist: false
+            });
+          } else {
+            render();
+          }
+        }, 1000);
+      }
+    };
+    // #endregion
+
+
+    // #region ----- ハイパーパラメータの定義-----
+    const numSessions = 3;
+    const numTrials = 2;
+
+    //--- テンプレート方向区間とセッション回転量を定義して隠れ報酬構造を再現する ---
+    const templateRanges = {
+      W_H: [0, 45],
+      B_H: [90, 135],
+      W_L: [180, 225],
+      B_L: [270, 315]
+    };
+    // #endregion
+
+
+    // #region ----- セッションごとで変化しないパラメータ・関数を定義 -----
+    //--- RDK試行の条件テンプレート ---
+    const templateConditions =[
+      { label: 'W_H_vs_B_L', white_range: 'W_H', black_range: 'B_L', target_group: 'white'},
+      { label: 'B_H_vs_W_L', white_range: 'W_L', black_range: 'B_H', target_group: 'black'}
+    ];
+    const templateLength = templateConditions.length;
+    //--- テンプレートをnumTrials試行数分複製し，ランダムに並べ替えたセッション条件を用意する ---
+    const baseConditions = [];
+    templateConditions.forEach((condition) => {
+      for (let i = 0; i < numTrials / templateLength; i++) {
+        baseConditions.push({
+          ...condition,
+          label: `${condition.label}_rep${i + 1}`
+        });
+      }
+    });
+    // セッションごとで変わるランダムな回転量[0, 359]を生み出す関数
+    const generateRandomInt = () => {
+      var randomAngle = Math.floor(Math.random() * 360);
+      return randomAngle;
+    };
+    // RDK条件をランダムに並べ替える関数
+    const generateRdkConditions = () => {
+      const shuffledConditions = jsPsych.randomization.shuffle(baseConditions);
+      return shuffledConditions;
+    };
+    // #endregion
+
+
+    // #region ----- セッションごとで変化するパラメータを定義 -----
+    var sessionRotation = generateRandomInt();
+    var shuffledBaseConditions = generateRdkConditions();
+    console.log(`Session rotation angle: ${sessionRotation} degrees`);
+    // #endregion
+  
+    const rotateAngle = (angle) => (angle + sessionRotation) % 360;
+    const sampleDirectionFromRange = (range) => {
+      const width = range[1] - range[0];
+      const baseAngle = Math.floor(range[0] + Math.random() * width);
+      return rotateAngle(baseAngle);
+    };
+    let rdk_conditions = [];
+    const rdkConditions = () => shuffledBaseConditions.map((condition) => {
+      //--- 方向差が90°未満なら再サンプル（最大20回で打ち切り） ---
+      let whiteDirection = sampleDirectionFromRange(templateRanges[condition.white_range]);
+      let blackDirection = sampleDirectionFromRange(templateRanges[condition.black_range]);
+      let attempts = 1;
+      const maxAttempts = 20;
+      const normalizedDiff = (w, b) => {
+        const raw = Math.abs(w - b);
+        return raw > 180 ? 360 - raw : raw;
+      };
+      let angularDiff = normalizedDiff(whiteDirection, blackDirection);
+      // 45 < diff < 90を満たすまで最大20回ループしている．
+      // だから，ターゲットじゃない方向を答えた場合，15°の誤差で報酬は０になる．
+      while (angularDiff < 45 && attempts < maxAttempts || angularDiff > 90 && attempts < maxAttempts) {
+        whiteDirection = sampleDirectionFromRange(templateRanges[condition.white_range]);
+        blackDirection = sampleDirectionFromRange(templateRanges[condition.black_range]);
+        angularDiff = normalizedDiff(whiteDirection, blackDirection);
+        attempts += 1;
+      }
+
+      console.log(`White direction: ${whiteDirection}, Black direction: ${blackDirection}, attempts: ${attempts}, diff: ${angularDiff}`);
+      const targetIndex = condition.target_group === 'white' ? 0 : 1;
+      return {
+        dots: [100, 100],
+        directions: [whiteDirection, blackDirection],
+        target_index: targetIndex,
+        target_group: condition.target_group,
+        condition_label: condition.label
+      };
+    });
+
+    // #region ----- RDK刺激を表示し高低報酬条件を記録する試行テンプレート -----
+    const rdk_template = {
+      type: jsPsychRdk,
+      number_of_dots: jsPsych.timelineVariable('dots'),
+      coherent_direction: jsPsych.timelineVariable('directions'),
+      correct_choice: ['a'],
+      trial_duration: 2000,
+      response_ends_trial: false,
+      background_color: '#AAA',
+      number_of_apertures: 2,
+      border: true,
+      border_color: 'transparent',
+      border_thickness: 2,
+      aperture_width: 300,
+      aperture_height: 300,
+      RDK_type: 3,
+      dot_color: ['white', 'black'],
+      coherence: [1.0, 1.0],
+      data: {
+        target_group: jsPsych.timelineVariable('target_group'),
+        target_index: jsPsych.timelineVariable('target_index'),
+        condition_label: jsPsych.timelineVariable('condition_label')
+      },
+      on_finish: function(data) {
+        data.target_direction = data.coherent_direction[data.target_index];
+        lastRdkResult = {
+          target_direction: data.target_direction,
+          target_group: data.target_group
+        };
+      }
+    };
+    // #endregion
+
+
+    // #region ----- 矢印キーでバーを回転させ回答角度を記録する試行テンプレート（タップで一度ずつになっていないのと，長押しで2段階くらいの速度を用意したい） -----
+    let responseAngle = 90;
+
+    const direction_response_trial = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p>rotate the bar by using the left and right arrow keys.</p>
+        <p>when you are determined, press the Enter key.</p>
+        <div class="response-container">
+          <div class="response-circle">
+            <div id="bar" class="rotating-bar"></div>
+          </div>
+        </div>
+      `,
+      choices: ['Enter'],
+      on_load: function() {
+        responseAngle = Math.floor(Math.random() * 360) % 360;
+        const bar = document.getElementById('bar');
+        bar.style.transform = `rotate(${responseAngle}deg)`;
+
+        const keysDown = { ArrowLeft: false, ArrowRight: false };
+        let holdStartTime = null;
+        let animationFrameId = null;
+        let isTap = false;
+
+        const rotateBar = () => {
+          const holdDuration = Date.now() - holdStartTime;
+          if (holdDuration > 150) {
+            isTap = false;
+          }
+          const step = holdDuration > 2000 ? 1 : 1;
+          if (keysDown.ArrowLeft) {
+            responseAngle -= step;
+          }
+          if (keysDown.ArrowRight) {
+            responseAngle += step;
+          }
+          bar.style.transform = `rotate(${responseAngle}deg)`;
+          if (keysDown.ArrowLeft || keysDown.ArrowRight) {
+            animationFrameId = requestAnimationFrame(rotateBar);
+          } else {
+            animationFrameId = null;
+          }
+        };
+
+        const keydownListener = (event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+            return;
+          }
+          if (event.repeat) {
+            return;
+          }
+          keysDown[event.key] = true;
+          isTap = true;
+          if (!animationFrameId) {
+            holdStartTime = Date.now();
+            animationFrameId = requestAnimationFrame(rotateBar);
+          }
+        };
+
+        const keyupListener = (event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+            return;
+          }
+          keysDown[event.key] = false;
+          if (isTap) {
+            responseAngle += event.key === 'ArrowLeft' ? -1 : 1;
+            bar.style.transform = `rotate(${responseAngle}deg)`;
+          }
+          isTap = false;
+        };
+
+        window.addEventListener('keydown', keydownListener);
+        window.addEventListener('keyup', keyupListener);
+
+        jsPsych.pluginAPI.getKeyboardResponse({
+          callback_function: () => {
+            window.removeEventListener('keydown', keydownListener);
+            window.removeEventListener('keyup', keyupListener);
+            if (animationFrameId) {
+              cancelAnimationFrame(animationFrameId);
+            }
+          },
+          valid_responses: ['Enter'],
+          rt_method: 'performance',
+          persist: false
+        });
+      },
+      on_finish: function(data) {
+        data.response_angle_css = responseAngle;
+        const convertedAngle = (450 - responseAngle + 360) % 360;
+        data.response_angle_rdk = convertedAngle;
+        if (lastRdkResult) {
+          let angularError = convertedAngle - lastRdkResult.target_direction;
+          if (angularError > 180) {
+            angularError -= 360;
+          }
+          if (angularError < -180) {
+            angularError += 360;
+          }
+          data.angular_error = angularError;
+          data.target_direction = lastRdkResult.target_direction;
+          data.target_group = lastRdkResult.target_group;
+          // 本来，target_group = whiteの場合にblackの方向角度を回答した場合に報酬が0になるようにしたいが，
+          // 現時点ではAEが45°を超えると報酬が0になるようになっているので，
+          // それぞれの刺激の方向が90°以上離れていることさえ保証すれば良い．
+          const rewardPoints = Math.max(0, Math.floor(10 * (1 - Math.abs(angularError) / 45)))
+          data.reward_points = rewardPoints;
+        }
+      }
+    };
+    // #endregion
+
+
+    // #region ----- 報酬表示のテンプレートで連続報酬を即時フィードバック -----
+    const reward_feedback_trial = {
+      type: jsPsychHtmlKeyboardResponse,
+      choices: 'NO_KEYS',
+      trial_duration: 2000,
+      stimulus: function() {
+        const lastResponse = jsPsych.data.get().last(1).values()[0];
+        const rewardPoints = lastResponse && typeof lastResponse.reward_points === 'number'
+          ? lastResponse.reward_points
+          : 0;
+        const color = rewardPoints > 2 ? '#00FF00' : '#FF3333';
+        return `
+          <p style="color: ${color};">Your reward: ${rewardPoints} points</p>
+        `;
+      }
+    };
+    // #endregion
+
+    rdk_conditions = rdkConditions();
+    let rdk_procedure = {
+      timeline: [fixation, rdk_template, direction_response_trial, reward_feedback_trial],
+      timeline_variables: rdk_conditions
+    };
+
+    timeline.push(welcome);
+    timeline.push(rdk_procedure);
+    timeline.push(breaktime);
+
+    sessionRotation = generateRandomInt();
+    shuffledBaseConditions = generateRdkConditions();
+    console.log(`Session rotation angle: ${sessionRotation} degrees`);
+    rdk_conditions = rdkConditions();
+    rdk_procedure = {
+      timeline: [fixation, rdk_template, direction_response_trial, reward_feedback_trial],
+      timeline_variables: rdk_conditions
+    };
+    timeline.push(rdk_procedure);
+    jsPsych.run(timeline);
+
+    console.log("--- jsPsych.run() が呼び出された ---");
+  </script>
+</html>
