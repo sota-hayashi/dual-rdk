@@ -44,7 +44,7 @@
         align-items: center;
         justify-content: center;
       }
-      .response-circle::after {
+      /* .response-circle::after {
         content: '';
         position: absolute;
         top: 50%;
@@ -55,7 +55,7 @@
         background-color: red;
         border-radius: 50%;
         z-index: 10;
-      }
+      } */
       .rotating-bar {
         width: 30px;
         height: 250px;
@@ -74,6 +74,36 @@
           40% 15%,
           0% 15%
         );
+      }
+      .response-fixation {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 30px; /* 十字の幅 */
+        height: 30px; /* 十字の高さ */
+        pointer-events: none;
+      }
+      .response-fixation::before,
+      .response-fixation::after {
+        content: '';
+        position: absolute;
+        background-color: #111; /* 十字の色 */
+      }
+      .response-fixation::before {
+        width: 2px; /* 縦線の太さ */
+        height: 100%; /* 縦線の長さ */
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0.45;
+      }
+      .response-fixation::after {
+        height: 2px; /* 横線の太さ */
+        width: 100%; /* 横線の長さ */
+        top: 50%;
+        transform: translateY(-50%);
+        transform: translateX(-50%);
+        opacity: 0.45;
       }
       .instructions-container {
         max-width: 800px;
@@ -216,6 +246,7 @@
       on_load: () => {
         // レイアウト確定後に中心座標を記録
         requestAnimationFrame(() => logCenterPositions('fixation', '.fixation'));
+        data.
       }
     };
 
@@ -266,7 +297,7 @@
 
     // #region ----- ハイパーパラメータの定義 -----
     const numSessions = 3;
-    const numTrials = 2;
+    const numTrials = 32;
 
     //--- テンプレート方向区間とセッション回転量を定義して隠れ報酬構造を再現する ---
     const templateRanges = {
@@ -388,6 +419,11 @@
       aperture_center_y: () => window.innerHeight/2,
       RDK_type: 3,
       coherence: [1.0, 1.0],
+      fixation_cross: true,
+      fixation_cross_width: 15,
+      fixation_cross_height: 15,
+      fixation_cross_color: '#111',
+      fixation_cross_thickness: 1,
       data: {
         target_group: jsPsych.timelineVariable('target_group'),
         target_index: jsPsych.timelineVariable('target_index'),
@@ -421,6 +457,7 @@
             <p>when you are determined, press the Enter key.</p>
           </div>
           <div class="response-circle">
+            <div class="response-fixation"></div>
             <div id="bar" class="rotating-bar"></div>
           </div>
         </div>
@@ -578,6 +615,11 @@
       RDK_type: 3,
       dot_color: ['white', 'black'],
       coherence: [1.0, 1.0],
+      fixation_cross: true,
+      fixation_cross_width: 15,
+      fixation_cross_height: 15,
+      fixation_cross_color: '#111',
+      fixation_cross_thickness: 1,
       data: {
         target_group: 'black',
         target_index: 1,
@@ -612,6 +654,11 @@
       RDK_type: 3,
       dot_color: ['white', 'black'],
       coherence: [1.0, 1.0],
+      fixation_cross: true,
+      fixation_cross_width: 15,
+      fixation_cross_height: 15,
+      fixation_cross_color: '#111',
+      fixation_cross_thickness: 1,
       data: {
         target_group: 'white',
         target_index: 0,
@@ -646,6 +693,11 @@
       RDK_type: 3,
       dot_color: ['white', 'black'],
       coherence: [1.0, 1.0],
+      fixation_cross: true,
+      fixation_cross_width: 15,
+      fixation_cross_height: 15,
+      fixation_cross_color: '#111',
+      fixation_cross_thickness: 1,
       data: {
         target_group: 'black',
         target_index: 1,
@@ -661,12 +713,12 @@
         };
       }
     };
-    // timeline.push(fixation, rdk_practice_1, direction_response_trial, reward_feedback_trial);
-    // responseAngle = Math.floor(Math.random() * 360) % 360;
-    // timeline.push(fixation, rdk_practice_2, direction_response_trial, reward_feedback_trial);
-    // responseAngle = Math.floor(Math.random() * 360) % 360;
-    // timeline.push(fixation, rdk_practice_3, direction_response_trial, reward_feedback_trial);
-    // timeline.push(finishpractice);
+    timeline.push(fixation, rdk_practice_1, direction_response_trial, reward_feedback_trial);
+    responseAngle = Math.floor(Math.random() * 360) % 360;
+    timeline.push(fixation, rdk_practice_2, direction_response_trial, reward_feedback_trial);
+    responseAngle = Math.floor(Math.random() * 360) % 360;
+    timeline.push(fixation, rdk_practice_3, direction_response_trial, reward_feedback_trial);
+    timeline.push(finishpractice);
       // #endregion
 
     for (let session = 0; session < numSessions; session++) {
