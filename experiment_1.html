@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
 		<script src="https://unpkg.com/jspsych@8"></script>
     <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
-    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
     <script src="https://unpkg.com/@jspsych-contrib/plugin-rdk@2.0.0"></script>
 		<link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
     <style>
@@ -260,7 +259,7 @@
       choices: "NO_KEYS",
       trial_duration: null,
       on_load: () => {
-        let remaining = 30;
+        let remaining = 3;
         let readyForKey = false;
         const el = document.getElementById('break-timer');
 
@@ -297,7 +296,10 @@
 
     // #region ----- ハイパーパラメータの定義 -----
     const numSessions = 2;
-    const numTrials = 32;
+    const numTrials = 2;
+    const whiteDots = 100;
+    const blackDots = 100;
+    const totalDots = whiteDots + blackDots;
 
     //--- テンプレート方向区間とセッション回転量を定義して隠れ報酬構造を再現する ---
     const templateRanges = {
@@ -388,17 +390,17 @@
       // const targetIndex = finalPairs.findIndex((p) => p.group === condition.target_group);
       // target_indexよくわからん
 
-      const array_dots = new Array(200).fill(1);
+      const array_dots = new Array(totalDots).fill(1);
 
-      const array_white = new Array(100).fill("white");
-      const array_black = new Array(100).fill("black");
+      const array_white = new Array(whiteDots).fill("white");
+      const array_black = new Array(blackDots).fill("black");
       const array_dot_color = [...array_white, ...array_black];
 
-      const array_white_direction = new Array(100).fill(whiteDirection);
-      const array_black_direction = new Array(100).fill(blackDirection);
+      const array_white_direction = new Array(whiteDots).fill(whiteDirection);
+      const array_black_direction = new Array(blackDots).fill(blackDirection);
       const array_direction = [...array_white_direction, ...array_black_direction];
 
-      const array_indices = Array.from({ length: 200 }, (value, index) => index);
+      const array_indices = Array.from({ length: totalDots }, (value, index) => index);
       const shuffled_indices = jsPsych.randomization.shuffle(array_indices);
 
       const dots = array_dots
@@ -435,7 +437,7 @@
       trial_duration: 2000,
       response_ends_trial: false,
       background_color: '#AAA',
-      number_of_apertures: 200,
+      number_of_apertures: totalDots,
       border: true,
       border_color: 'transparent',
       border_thickness: 2,
