@@ -186,7 +186,7 @@
     };
 
 
-    var timeline = [];
+    let timeline = [];
     let lastRdkResult = null;
 
     // #region ----- ウェルカムメッセージ，タスク説明，固定視標と休憩 -----
@@ -296,7 +296,7 @@
 
 
     // #region ----- ハイパーパラメータの定義 -----
-    const numSessions = 3;
+    const numSessions = 2;
     const numTrials = 32;
 
     //--- テンプレート方向区間とセッション回転量を定義して隠れ報酬構造を再現する ---
@@ -326,9 +326,9 @@
         });
       }
     });
-    // セッションごとで変わるランダムな回転量[0, 359]を生み出す関数
+    // セッションごとで変化するランダムな回転量[0, 359]を生み出す関数
     const generateRandomInt = () => {
-      var randomAngle = Math.floor(Math.random() * 360);
+      const randomAngle = Math.floor(Math.random() * 360);
       return randomAngle;
     };
     // RDK条件をランダムに並べ替える関数
@@ -340,8 +340,8 @@
 
 
     // #region ----- セッションごとで変化するパラメータを定義 -----
-    var sessionRotation = generateRandomInt();
-    var shuffledBaseConditions = generateRdkConditions();
+    let sessionRotation = generateRandomInt();
+    let shuffledBaseConditions = generateRdkConditions();
     // console.log(`Session rotation angle: ${sessionRotation} degrees`);
     // #endregion
   
@@ -365,9 +365,9 @@
         return raw > 180 ? 360 - raw : raw;
       };
       let angularDiff = normalizedDiff(whiteDirection, blackDirection);
-      // 45 < diff < 90を満たすまで最大20回ループしている．
-      // だから，ターゲットじゃない方向を答えた場合，15°の誤差で報酬は０になる．
-      while (angularDiff < 45 && attempts < maxAttempts || angularDiff > 90 && attempts < maxAttempts) {
+      // diff > 90を満たすまで最大20回ループしている．
+      // ここで狙っているのは，targetから45°以上離れると0点になる，かつtarget/distractorのどちらを選択したかを区分すること．
+      while (angularDiff < 90 && attempts < maxAttempts) {
         whiteDirection = sampleDirectionFromRange(templateRanges[condition.white_range]);
         blackDirection = sampleDirectionFromRange(templateRanges[condition.black_range]);
         angularDiff = normalizedDiff(whiteDirection, blackDirection);
@@ -376,24 +376,50 @@
 
       console.log(`White direction: ${whiteDirection}, Black direction: ${blackDirection}, attempts: ${attempts}, diff: ${angularDiff}`);
 
-      const basePairs = [
-        { color: 'white', direction: whiteDirection, dots: 100, group: 'white' },
-        { color: 'black', direction: blackDirection, dots: 100, group: 'black' }
-      ];
-      const finalPairs = Math.random() < 0.5 ? basePairs : basePairs.slice().reverse();
-      console.log('Final pairs order:', finalPairs);
-      const directions = finalPairs.map((p) => p.direction);
-      const dotColors = finalPairs.map((p) => p.color);
-      const dots = finalPairs.map((p) => p.dots);
-      const targetIndex = finalPairs.findIndex((p) => p.group === condition.target_group);
+      // const basePairs = [
+      //   { color: 'white', direction: whiteDirection, dots: 100, group: 'white' },
+      //   { color: 'black', direction: blackDirection, dots: 100, group: 'black' }
+      // ];
+      // const finalPairs = Math.random() < 0.5 ? basePairs : basePairs.slice().reverse();
+      // console.log('Final pairs order:', finalPairs);
+      // const directions = finalPairs.map((p) => p.direction);
+      // const dotColors = finalPairs.map((p) => p.color);
+      // const dots = finalPairs.map((p) => p.dots);
+      // const targetIndex = finalPairs.findIndex((p) => p.group === condition.target_group);
+      // target_indexよくわからん
+
+      const array_dots = new Array(200).fill(1);
+
+      const array_white = new Array(100).fill("white");
+      const array_black = new Array(100).fill("black");
+      const array_dot_color = [...array_white, ...array_black];
+
+      const array_white_direction = new Array(100).fill(whiteDirection);
+      const array_black_direction = new Array(100).fill(blackDirection);
+      const array_direction = [...array_white_direction, ...array_black_direction];
+
+      const array_indices = Array.from({ length: 200 }, (value, index) => index);
+      const shuffled_indices = jsPsych.randomization.shuffle(array_indices);
+
+      const dots = array_dots
+      const dotColors = shuffled_indices.map(i => array_dot_color[i]);
+      const directions = shuffled_indices.map(i => array_direction[i]);
+
+      console.log('dotColors:', dotColors, 'directions:', directions);
+
+      const targetDirection = condition.target_group === 'white' ? whiteDirection : blackDirection;
+      const distractorDirection = condition.target_group === 'white' ? blackDirection : whiteDirection;
 
       return {
         dots,
         directions,
-        target_index: targetIndex,
+        // target_index: targetIndex,
         target_group: condition.target_group,
         condition_label: condition.label,
-        dot_color: dotColors
+        dot_color: dotColors,
+        target_direction: targetDirection,
+        distractor_direction: distractorDirection,
+        session_rotation: sessionRotation
       };
     });
     // #endregion
@@ -409,7 +435,7 @@
       trial_duration: 2000,
       response_ends_trial: false,
       background_color: '#AAA',
-      number_of_apertures: 2,
+      number_of_apertures: 200,
       border: true,
       border_color: 'transparent',
       border_thickness: 2,
@@ -418,7 +444,7 @@
       aperture_center_x: () => window.innerWidth/2,
       aperture_center_y: () => window.innerHeight/2,
       RDK_type: 3,
-      coherence: [1.0, 1.0],
+      coherence: jsPsych.timelineVariable('dots'),
       fixation_cross: true,
       fixation_cross_width: 15,
       fixation_cross_height: 15,
@@ -426,15 +452,18 @@
       fixation_cross_thickness: 1,
       data: {
         target_group: jsPsych.timelineVariable('target_group'),
-        target_index: jsPsych.timelineVariable('target_index'),
-        condition_label: jsPsych.timelineVariable('condition_label')
+        // target_index: jsPsych.timelineVariable('target_index'),
+        condition_label: jsPsych.timelineVariable('condition_label'),
+        target_direction: jsPsych.timelineVariable('target_direction'),
+        distractor_direction: jsPsych.timelineVariable('distractor_direction'),
+        session_rotation: jsPsych.timelineVariable('session_rotation')
       },
       on_load: function() {
         
       },
       on_finish: function(data) {
-        data.target_direction = data.coherent_direction[data.target_index];
-        data.distractor_direction = data.coherent_direction[1 - data.target_index];
+        // data.target_direction = data.coherent_direction[data.target_index];
+        // data.distractor_direction = data.coherent_direction[1 - data.target_index];
         lastRdkResult = {
           target_direction: data.target_direction,
           distractor_direction: data.distractor_direction,
@@ -556,18 +585,21 @@
           if (angularErrorDistractor < -180) {
             angularErrorDistractor += 360;
           }
-          const angularError = Math.abs(angularErrorTarget) < Math.abs(angularErrorDistractor)
-            ? angularErrorTarget
-            : angularErrorDistractor;
-          data.angular_error = angularError;
+          // TODO: angular_error はターゲット/ディストラクタのうち小さい方を採用しているため、
+          // 将来的には angularTargetError / angularDistractorError を別カラムで保存して混同を防ぐ。
+          // const angularError = Math.abs(angularErrorTarget) < Math.abs(angularErrorDistractor)
+          //   ? angularErrorTarget
+          //   : angularErrorDistractor;
+          data.angular_error_target = angularErrorTarget;
+          data.angular_error_distractor = angularErrorDistractor;
           data.target_direction = lastRdkResult.target_direction;
           data.target_group = lastRdkResult.target_group;
           // 本来，target_group = whiteの場合にblackの方向角度を回答した場合に報酬が0になるようにしたいが，
           // 現時点ではAEが45°を超えると報酬が0になるようになっているので，
           // それぞれの刺激の方向が90°以上離れていることさえ保証すれば良い．
-          const rewardPoints = Math.max(0, Math.floor(10 * (1 - Math.abs(angularErrorTarget) / 45)))
+          const rewardPoints = Math.max(0, Math.floor(10 * (1 - Math.abs(angularErrorTarget) / 50)))
           data.reward_points = rewardPoints;
-          data.rotation_angle = sessionRotation;
+          // data.rotation_angle = jsPsych.timelineVariable('session_rotation') ?? sessionRotation;
         }
       }
     };
@@ -713,12 +745,13 @@
         };
       }
     };
-    timeline.push(fixation, rdk_practice_1, direction_response_trial, reward_feedback_trial);
-    responseAngle = Math.floor(Math.random() * 360) % 360;
-    timeline.push(fixation, rdk_practice_2, direction_response_trial, reward_feedback_trial);
-    responseAngle = Math.floor(Math.random() * 360) % 360;
-    timeline.push(fixation, rdk_practice_3, direction_response_trial, reward_feedback_trial);
-    timeline.push(finishpractice);
+    // timeline.push(fixation, rdk_practice_1, direction_response_trial, reward_feedback_trial);
+    // responseAngle = Math.floor(Math.random() * 360) % 360;
+    // timeline.push(fixation, rdk_practice_2, direction_response_trial, reward_feedback_trial);
+    // responseAngle = Math.floor(Math.random() * 360) % 360;
+    // timeline.push(fixation, rdk_practice_3, direction_response_trial, reward_feedback_trial);
+    // timeline.push(finishpractice);
+
       // #endregion
 
     for (let session = 0; session < numSessions; session++) {
