@@ -12,18 +12,29 @@ import statsmodels.api as sm
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-DATA_PATH = Path("data/experiment_data_202511251648.csv")
+# デフォルトのデータパスはJSONに差し替え（必要に応じて変更してください）
+DATA_PATH = Path("data_online_experiment/596634e005f2df00017281ae.json")
 
 PRACTICE_ROWS = 6
-ROWS_PER_SESSION = 64
-TRIALS_PER_SESSION = 32
+ROWS_PER_SESSION = 100
+TRIALS_PER_SESSION = 50
+ROWS_FOR_AWARENESS = 16
 
 
 def load_data(path: Path) -> pd.DataFrame:
-    """Load the CSV and report its shape/columns."""
-    df = pd.read_csv(path)
-    # print(f"Loaded {len(df)} rows with columns: {list(df.columns)}")
-    return df
+    """
+    Load CSV or JSON (jsPsych export) into a DataFrame.
+    - CSV: same挙動 as before.
+    - JSON: expects an array of trial dictionaries (jsPsych.data.get().json()).
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return pd.read_csv(path)
+    if suffix == ".json":
+        with open(path, "r") as f:
+            records = json.load(f)
+        return pd.DataFrame(records)
+    raise ValueError(f"Unsupported file type: {suffix}")
 
 
 def filter_task_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -32,16 +43,14 @@ def filter_task_rows(df: pd.DataFrame) -> pd.DataFrame:
     task_df = df.loc[task_mask].copy()
     # print(f"Rows with target_group white/black: {len(task_df)}")
     trimmed_df = task_df.iloc[PRACTICE_ROWS:].reset_index(drop=True)
+    trimmed_df_learning = trimmed_df.iloc[:-ROWS_FOR_AWARENESS].copy()
+    trimmed_df_awareness = trimmed_df.iloc[-ROWS_FOR_AWARENESS:].copy()
     # print(f"After dropping first {PRACTICE_ROWS} rows (practice): {len(trimmed_df)} rows remain")
-    return trimmed_df
+    return trimmed_df_learning, trimmed_df_awareness
 
 
 def annotate_sessions(df: pd.DataFrame) -> pd.DataFrame:
     """Add num_session and num_trial columns as described."""
-    expected_rows = ROWS_PER_SESSION * 3
-    if len(df) != expected_rows:
-        raise ValueError(f"Expected {expected_rows} rows after trimming, got {len(df)}")
-
     df = df.copy()
     df["num_session"] = df.index // ROWS_PER_SESSION
     df["num_trial"] = (df.index % ROWS_PER_SESSION) // 2
@@ -66,6 +75,7 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
         base["reward_points"] = follow.get("reward_points")
         base["angular_error_target"] = follow.get("angular_error_target")
         base["angular_error_distractor"] = follow.get("angular_error_distractor")
+        base["rt"] = follow.get("rt")
         combined_rows.append(base)
 
     combined_df = pd.DataFrame(combined_rows).reset_index(drop=True)
@@ -84,7 +94,7 @@ def permutation_spearman(x: np.ndarray, y: np.ndarray, n_perm: int = 5000, rando
     p_perm = (extreme + 1) / (n_perm + 1)
     return {"rho": rho, "p_perm": p_perm}
 
-
+# -------- 相関を調べる関数群 --------
 def analyze_reward_learning(df: pd.DataFrame, n_perm: int = 5000) -> pd.DataFrame:
     """For each session, correlate num_trial with reward_points using Spearman + permutation test."""
     records: List[Dict[str, float]] = []
@@ -120,6 +130,124 @@ def mean_reward_by_trial_across_subjects(concat_list):
         rows.append({"num_session": sess, "rho": r, "p": p, "n_trials": len(sub)})
     return pd.DataFrame(rows)
 
+# ------------------------------------
+
+# -------- 回帰を調べる関数群 --------
+def analyze_reward_learning_regression(concat_list: pd.DataFrame) -> pd.DataFrame:
+    combined = combine_subjects(concat_list).dropna(subset=["num_trial", "reward_points", "num_session"])
+    for subj_id, sub in combined.groupby("num_session"):
+        valid = sub.dropna(subset=["num_trial", "reward_points"])
+        if valid["num_trial"].nunique() <= 1 or len(valid) < 3:
+            continue
+        X = sm.add_constant(valid["num_trial"])
+        model = sm.OLS(valid["reward_points"], X)
+        results = model.fit()
+        print(f"Across all subjects, {subj_id} session regression results:")
+        print(results.summary())
+    return pd.DataFrame()
+
+
+def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    被験者内解析: 白/黒のどちらを選んだか推定し、色ごとに角度誤差の変化を回帰で検定。
+    - df: load_and_prepare 済み（単一被験者）を想定。
+    - 選択色は |angular_error_target| と |angular_error_distractor| を比較して決定。
+      target_group=white かつ |target|<|distractor| -> white 選択, 逆なら black 選択（black target も同様）。
+      ※誤って反対方向を選んだケースは一旦無視（必要なら別途フラグ化）。
+    """
+    needed = ["angular_error_target", "angular_error_distractor", "target_group", "reward_points"]
+    if not set(needed).issubset(df.columns):
+        raise ValueError(f"DataFrame lacks required columns: {needed}")
+
+    work = df.dropna(subset=needed + ["num_trial"]).copy()
+    if work.empty:
+        return pd.DataFrame()
+
+    abs_t = work["angular_error_target"].abs()
+    abs_d = work["angular_error_distractor"].abs()
+
+    # 推定した選択色
+    def infer_choice(row):
+        if abs(row["angular_error_target"]) <= abs(row["angular_error_distractor"]):
+            return row["target_group"]  # 目標色に近い
+        # ここで「反対方向を選んだ可能性」を考慮する場合は別フラグを立てて判定する
+        return "white" if row["target_group"] == "black" else "black"
+
+    work["chosen_color"] = work.apply(infer_choice, axis=1)
+    work["chosen_error"] = np.where(
+        work["chosen_color"] == work["target_group"],
+        work["angular_error_target"],
+        work["angular_error_distractor"],
+    )
+
+    # 色ごとの試行インデックス（累積カウンタ）
+    work["color_trial_index"] = work.groupby("chosen_color").cumcount()
+
+    rows = []
+    for color, sub in work.groupby("chosen_color"):
+        if len(sub) < 3:
+            rows.append({
+                "color": color,
+                "n": len(sub),
+                "mean_abs_error": sub["chosen_error"].abs().mean(),
+                "slope": np.nan,
+                "p_value": np.nan,
+                "note": "not enough trials"
+            })
+            continue
+        X = sm.add_constant(sub["color_trial_index"])
+        fit = sm.OLS(sub["chosen_error"], X).fit()
+        slope = fit.params.get("color_trial_index", np.nan)
+        pval = fit.pvalues.get("color_trial_index", np.nan)
+        rows.append({
+            "color": color,
+            "n": len(sub),
+            "mean_reward": sub["reward_points"].mean(),
+            "mean_abs_error": sub["chosen_error"].abs().mean(),
+            "slope": slope,
+            "p_value": pval,
+            "note": ""
+        })
+
+    return pd.DataFrame(rows)
+
+
+def analyze_color_accuracy_change_across_subjects(concat_list: List[Tuple[str, pd.DataFrame]] , alpha: float = 0.05) -> Dict[str, object]:
+    """
+    全被験者に対して analyze_color_accuracy_change を実行し、
+    p値が alpha 以下のケースをカウントする。
+    Returns:
+      {
+        "all_results": DataFrame(subject, color, n, mean_abs_error, slope, p_value, note),
+        "significant": DataFrame(上記から p<=alpha を抽出),
+        "n_sig": 件数（行数ベース）,
+        "alpha": alpha
+      }
+    """
+    per_subject_rows = []
+    for subj_id, df in concat_list:
+        try:
+            res = analyze_color_accuracy_change(df)
+            if res.empty:
+                continue
+            res = res.copy()
+            res["subject"] = subj_id
+            per_subject_rows.append(res)
+        except Exception as e:
+            print(f"Skipping {subj_id}: {e}")
+            continue
+
+    if not per_subject_rows:
+        return {"all_results": pd.DataFrame(), "significant": pd.DataFrame(), "n_sig": 0, "alpha": alpha}
+
+    all_results = pd.concat(per_subject_rows, ignore_index=True)
+    significant = all_results.loc[all_results["p_value"] <= alpha].copy()
+    return {
+        "all_results": all_results,
+        "significant": significant,
+        "n_sig": len(significant),
+        "alpha": alpha
+    }
 
 def permutation_mean_diff(values_a: np.ndarray, values_b: np.ndarray, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
     """Permutation test for difference in means between two groups."""
@@ -206,24 +334,36 @@ def compute_same_diff_stats(df: pd.DataFrame) -> Dict[str, int]:
 def load_and_prepare(path: Path) -> pd.DataFrame:
     """Full pipeline: load -> filter -> annotate -> concatenate."""
     df = load_data(path)
-    trimmed = filter_task_rows(df)
-    annotated = annotate_sessions(trimmed)
-    concatenated = concatenate_trials(annotated)
-    return concatenated
-
+    trimmed_learning, trimmed_awareness = filter_task_rows(df)
+    annotated_learning = annotate_sessions(trimmed_learning)
+    concatenated_learning = concatenate_trials(annotated_learning)
+    annotated_awareness = annotate_sessions(trimmed_awareness)
+    concatenated_awareness = concatenate_trials(annotated_awareness)
+    return concatenated_learning, concatenated_awareness
 
 def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
-    """Load all csvs in data_dir and return list of (subject_id, concatenated_df)."""
-    datasets = []
-    for csv_path in sorted(data_dir.glob("*.csv")):
-        subj_id = csv_path.stem
+    """Load all csv/json in data_dir and return list of (subject_id, concatenated_df)."""
+    datasets_learning = []
+    datasets_awareness = []
+    for file_path in sorted(list(data_dir.glob("*.csv")) + list(data_dir.glob("*.json"))):
+        subj_id = file_path.stem
+        # print(f"Loading subject {subj_id} from {file_path.name}...")
+        # if subj_id in [
+        #             #      "666306b0bf2de127943c419f"
+        #             #    , "667aca76f4fb2f1d50d80c2e"
+        #             #    , "673757f92aa69c13b7841d90"
+        #             #    , "673f0e83fbba6c167eebd6f7"
+        #             #    , "677e4656af6e5525f72fc926"
+        #             #    , "678f3b13379c83cf1027d2ed"
+        #             ]:
+        #     continue
         try:
-            concat_df = load_and_prepare(csv_path)
-            datasets.append((subj_id, concat_df))
+            concat_df_learning, concat_df_awareness = load_and_prepare(file_path)
+            datasets_learning.append((subj_id, concat_df_learning))
+            datasets_awareness.append((subj_id, concat_df_awareness))
         except Exception as e:
-            print(f"Skipping {csv_path.name}: {e}")
-    return datasets
-
+            print(f"Skipping {file_path.name}: {e}")
+    return datasets_learning, datasets_awareness
 
 def permutation_sign_test(values: np.ndarray, center: float = 0.0, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
     """
@@ -319,18 +459,19 @@ def combine_subjects(concat_list: List[Tuple[str, pd.DataFrame]]) -> pd.DataFram
     return pd.concat(rows, ignore_index=True)
 
 
-def mixed_learning_across_subjects(concat_list: List[Tuple[str, pd.DataFrame]], n_perm: int = 500, random_state: int = 0) -> Dict[str, object]:
+def mixed_learning_across_subjects(concat_list: List[Tuple[str, pd.DataFrame]], n_perm: int = 100, random_state: int = 0) -> Dict[str, object]:
     """
     Mixed model across subjects: reward_points ~ num_trial + num_session + (1|subject)
     Permutation p-values via shuffling reward_points.
     """
     combined = combine_subjects(concat_list)
-    combined = combined.dropna(subset=["reward_points", "num_trial", "num_session", "subject"])
+    print(combined)
+    combined = combined.dropna(subset=["reward_points", "num_trial", "subject"])
     if combined.empty:
         return {"model": None, "permutation": None}
 
     rng = np.random.default_rng(random_state)
-    model = smf.mixedlm("reward_points ~ num_trial + num_session", data=combined, groups=combined["subject"])
+    model = smf.mixedlm("reward_points ~ num_trial", data=combined, groups=combined["subject"])
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=ConvergenceWarning)
         fit = model.fit(reml=False, maxiter=500, disp=False)
@@ -344,7 +485,7 @@ def mixed_learning_across_subjects(concat_list: List[Tuple[str, pd.DataFrame]], 
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=ConvergenceWarning)
-                perm_fit = smf.mixedlm("reward_points ~ num_trial + num_session", data=perm_data, groups=perm_data["subject"]).fit(reml=False, maxiter=300, disp=False)
+                perm_fit = smf.mixedlm("reward_points ~ num_trial", data=perm_data, groups=perm_data["subject"]).fit(reml=False, maxiter=300, disp=False)
             for k in obs_beta.index:
                 perm_beta[k].append(perm_fit.params.get(k, np.nan))
         except Exception:
@@ -446,3 +587,182 @@ def plot_reward_by_trial(df: pd.DataFrame, session_id: int, save_path: str = Non
         plt.savefig(save_path, bbox_inches="tight")
         print(f"Saved plot to {save_path}")
     plt.show()
+
+def extract_rts_from_online_data(data_dir: Path) -> List[float]:
+    """
+    指定されたディレクトリ内のすべてのJSONファイルから'rt'を抽出します。
+    'rt'が存在し、nullでない試行のみを対象とします。
+    """
+    all_rts = []
+    if not data_dir.is_dir():
+        print(f"Error: Directory not found at {data_dir}")
+        return all_rts
+
+    for file_path in sorted(data_dir.glob("*.json")):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                trials = json.load(f)
+                for trial in trials:
+                    # trialが辞書型であり、'rt'キーを持つか確認
+                    if isinstance(trial, dict) and 'rt' in trial:
+                        rt_value = trial['rt']
+                        # rt_valueがNoneでないことを確認
+                        if rt_value is not None:
+                            all_rts.append(float(rt_value))
+        except json.JSONDecodeError:
+            print(f"Warning: Could not decode JSON from {file_path.name}")
+        except Exception as e:
+            print(f"Warning: An error occurred while processing {file_path.name}: {e}")
+
+    return all_rts
+
+def plot_regression_across_subjects(concat_list, session_id=0, save_path=None):
+    df = combine_subjects(concat_list).dropna(subset=["num_trial", "reward_points", "num_session"])
+    sub = df[df["num_session"] == session_id]
+    if sub.empty:
+        print(f"No data for session {session_id}")
+        return
+
+    # OLSで傾きなど計算
+    X = sm.add_constant(sub["num_trial"])
+    fit = sm.OLS(sub["reward_points"], X).fit()
+    slope = fit.params["num_trial"]
+    pval = fit.pvalues["num_trial"]
+
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.regplot(x="num_trial", y="reward_points", data=sub,
+                scatter_kws={"alpha": 0.5}, line_kws={"color": "red"}, ci=95, ax=ax)
+    ax.set_title(f"Across subjects: Reward vs Trial (session {session_id+1})")
+    ax.text(0.05, 0.95,
+            f"slope={slope:.3f}\np={pval:.3f}",
+            transform=ax.transAxes, va="top",
+            bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray"))
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+    plt.show()
+
+
+# -------- マインドワンダリング解析 --------
+def compute_out_of_zone_ratio(df: pd.DataFrame, lower: float = 45.0, upper: float = 60.0) -> float:
+    """
+    各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
+    
+    out of the zone の定義:
+      lower < |angular_error_target| < upper かつ lower < |angular_error_distractor| < upper
+    を満たす試行を 1 (out of the zone) とラベル付けする。
+    
+    Args:
+        df: 単一被験者の連結済みDataFrame（angular_error_target, angular_error_distractor列を含む）
+        lower: 下限閾値（デフォルト45度）
+        upper: 上限閾値（デフォルト60度）
+    
+    Returns:
+        out of the zone 試行の割合 (0.0 ~ 1.0)
+    """
+    needed = ["angular_error_target", "angular_error_distractor"]
+    if not set(needed).issubset(df.columns):
+        raise ValueError(f"DataFrame lacks required columns: {needed}")
+    
+    valid = df.dropna(subset=needed).copy()
+    if valid.empty:
+        return np.nan
+    
+    abs_target = valid["angular_error_target"].abs()
+    abs_distractor = valid["angular_error_distractor"].abs()
+    
+    # out of the zone: lower < |error| < upper for BOTH target and distractor
+    out_of_zone_mask = (
+        (abs_target > lower) & (abs_target < upper) &
+        (abs_distractor > lower) & (abs_distractor < upper)
+    )
+    
+    n_out_of_zone = out_of_zone_mask.sum()
+    n_total = len(valid)
+    
+    return n_out_of_zone / n_total if n_total > 0 else np.nan
+
+
+def plot_mind_wandering_vs_reward(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    lower: float = 10.0,
+    upper: float = 80.0,
+    save_path: str = None
+) -> pd.DataFrame:
+    """
+    各被験者のout of the zone割合と平均獲得報酬の関係をプロットする。
+    
+    横軸: out of the zone 割合
+    縦軸: 平均獲得報酬
+    回帰直線、傾き、p値、95%信頼区間を表示。
+    
+    Args:
+        concat_list: (subject_id, DataFrame) のリスト
+        lower: out of the zone判定の下限閾値（デフォルト45度）
+        upper: out of the zone判定の上限閾値（デフォルト60度）
+        save_path: 保存先パス（Noneなら保存しない）
+    
+    Returns:
+        被験者ごとの集計結果DataFrame (subject, out_of_zone_ratio, mean_reward)
+    """
+    rows = []
+    for subj_id, df in concat_list:
+        try:
+            out_ratio = compute_out_of_zone_ratio(df, lower=lower, upper=upper)
+            valid = df.dropna(subset=["reward_points"])
+            mean_reward = valid["reward_points"].mean() if not valid.empty else np.nan
+            rows.append({
+                "subject": subj_id,
+                "out_of_zone_ratio": out_ratio,
+                "mean_reward": mean_reward
+            })
+        except Exception as e:
+            print(f"Skipping {subj_id}: {e}")
+            continue
+    
+    result_df = pd.DataFrame(rows).dropna()
+    
+    if result_df.empty or len(result_df) < 3:
+        print("Not enough data for regression analysis.")
+        return result_df
+    
+    # OLS回帰
+    X = sm.add_constant(result_df["out_of_zone_ratio"])
+    fit = sm.OLS(result_df["mean_reward"], X).fit()
+    slope = fit.params.get("out_of_zone_ratio", np.nan)
+    pval = fit.pvalues.get("out_of_zone_ratio", np.nan)
+    
+    # プロット
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.regplot(
+        x="out_of_zone_ratio",
+        y="mean_reward",
+        data=result_df,
+        ax=ax,
+        scatter_kws={"alpha": 0.5},
+        line_kws={"color": "red"},
+        ci=95
+    )
+    
+    ax.set_xlabel("Out of the Zone Ratio", fontsize=12)
+    ax.set_ylabel("Mean Reward Points", fontsize=12)
+    ax.set_title("Mind Wandering vs Reward (Across Subjects)", fontsize=14)
+    
+    # 統計情報をプロット上に表示
+    sig_marker = "*" if pval < 0.05 else ""
+    ax.text(
+        0.05, 0.95,
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(result_df)}",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=11,
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+    )
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
+    plt.show()
+    
+    return result_df
