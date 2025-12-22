@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Tuple, Iterable
+from typing import Dict, List, Tuple, Iterable, Callable
 import json
 
 import numpy as np
@@ -682,12 +682,37 @@ def compute_out_of_zone_ratio(df: pd.DataFrame, lower: float = 45.0, upper: floa
     
     return n_out_of_zone / n_total if n_total > 0 else np.nan
 
+def compute_mean_distractor_AngularError_ratio(df: pd.DataFrame, max_abs_angle: float = 180.0) -> float:
+    """
+    各被験者のdistractorに対する平均角度誤差を計算し、0〜1にスケールする。
+    
+    Args:
+        df: 単一被験者の連結済みDataFrame（angular_error_distractor列を含む）
+        max_abs_angle: スケーリング用に想定する最大絶対角度。デフォルトは180度。
+    
+    Returns:
+        distractorに対する平均角度誤差（0〜1にスケールした値）
+    """
+    if "angular_error_distractor" not in df.columns:
+        raise ValueError("DataFrame lacks 'angular_error_distractor' column.")
+    if max_abs_angle <= 0:
+        raise ValueError("max_abs_angle must be positive.")
+    
+    valid = df[df["angular_error_target"].abs() > 45]["angular_error_distractor"].dropna()
+    if valid.empty:
+        return np.nan
+    
+    mean_abs_error = valid.abs().mean()
+    # 角度範囲を max_abs_angle とみなし 0〜1 にスケール（上限をクリップ）
+    scaled = mean_abs_error / max_abs_angle
+    return len(valid), float(np.clip(scaled, 0.0, 1.0))
+
 
 def plot_mind_wandering_vs_reward(
     concat_list: List[Tuple[str, pd.DataFrame]],
-    lower: float = 10.0,
-    upper: float = 80.0,
-    save_path: str = None
+    save_path: str = None,
+    ooz_index: str = "default",
+    ooz_fn: Callable[[pd.DataFrame, float, float], float] = None, 
 ) -> pd.DataFrame:
     """
     各被験者のout of the zone割合と平均獲得報酬の関係をプロットする。
@@ -705,10 +730,20 @@ def plot_mind_wandering_vs_reward(
     Returns:
         被験者ごとの集計結果DataFrame (subject, out_of_zone_ratio, mean_reward)
     """
+
+    ooz_methods = {
+        "default": compute_out_of_zone_ratio,
+        "AngularError_distractor": compute_mean_distractor_AngularError_ratio,
+        # "alt1": compute_out_of_zone_ratio_alt,  # 追加したい場合ここに足す
+    }
+    func = ooz_fn or ooz_methods.get(ooz_index)
+    if func is None:
+        raise ValueError(f"Unknown ooz_index: {ooz_index}")
+
     rows = []
     for subj_id, df in concat_list:
         try:
-            out_ratio = compute_out_of_zone_ratio(df, lower=lower, upper=upper)
+            length, out_ratio = func(df)
             valid = df.dropna(subset=["reward_points"])
             mean_reward = valid["reward_points"].mean() if not valid.empty else np.nan
             rows.append({
@@ -716,6 +751,7 @@ def plot_mind_wandering_vs_reward(
                 "out_of_zone_ratio": out_ratio,
                 "mean_reward": mean_reward
             })
+            print(f"Subject {subj_id}: out_of_zone_ratio={out_ratio:.4f}, mean_reward={mean_reward:.2f}, n_trials={length}")
         except Exception as e:
             print(f"Skipping {subj_id}: {e}")
             continue
