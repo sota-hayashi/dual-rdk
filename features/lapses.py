@@ -10,10 +10,11 @@ def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, lower: float = 45.0, upper
     各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
 
     out of the zone の定義:
-      lower < |angular_error_target| < upper かつ lower < |angular_error_distractor| < upper
-    を満たす試行を 1 (out of the zone) とラベル付けする。
+      被験者が回答した角度が，target/distractorの45度以内に入っていない試行を注意が途切れた試行とし，
+      その総試行数に対する割合．
+      つまり，chosen_item == -1を満たす試行の割合を計算する．
     """
-    needed = ["angular_error_target", "angular_error_distractor"]
+    needed = ["rt", "chosen_item"]
     if not set(needed).issubset(df.columns):
         raise ValueError(f"DataFrame lacks required columns: {needed}")
 
@@ -21,15 +22,7 @@ def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, lower: float = 45.0, upper
     if valid.empty:
         return np.nan
 
-    abs_target = valid["angular_error_target"].abs()
-    abs_distractor = valid["angular_error_distractor"].abs()
-
-    out_of_zone_mask = (
-        (abs_target > lower) & (abs_target < upper) &
-        (abs_distractor > lower) & (abs_distractor < upper)
-    )
-
-    n_out_of_zone = out_of_zone_mask.sum()
+    n_out_of_zone = (valid["chosen_item"] == -1).sum()
     n_total = len(valid)
 
     return n_out_of_zone / n_total if n_total > 0 else np.nan
@@ -70,7 +63,7 @@ def compute_out_of_zone_ratio_by_rt(df: pd.DataFrame) -> float:
     
     valid = valid[valid["chosen_item"].isin([0, 1])]
     # 今は前後半で分けてMW vs rewardを見ている
-    n_out_of_zone = ((valid["ooz"] == 1) & (valid["num_trial"] < 20)).sum()
+    n_out_of_zone = ((valid["ooz"] == 1)).sum()
     n_total = len(valid)
 
     return n_out_of_zone / n_total if n_total > 0 else np.nan
