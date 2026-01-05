@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.stats import chi2_contingency
 import statsmodels.api as sm
 
-from io.load import combine_subjects
+from io_data.load import combine_subjects
 from stats.metrics import permutation_sign_test, cmh_test_2x2
 
 
@@ -38,6 +38,46 @@ def summarize_chosen_item_errors(concat_list: List[Tuple[str, pd.DataFrame]]) ->
         .reset_index()
     )
     return result
+
+def calculate_rt_moving_mean(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    window: int = 3
+) -> List[Tuple[str, pd.DataFrame]]:
+    """
+    直前試行のRTを使った移動平均 M_t を計算する。
+    M_t = mean(RT_{t-1}, RT_{t-2}, RT_{t-3})
+    """
+    updated = []
+    for subj_id, df in concat_list:
+        work = df.copy()
+        if "rt" not in work.columns:
+            raise ValueError("DataFrame lacks 'rt' column.")
+        rt = pd.to_numeric(work["rt"], errors="coerce")
+        work["rt_moving_mean"] = rt.shift(1).rolling(window=window, min_periods=1).mean()
+        updated.append((subj_id, work))
+    return updated
+
+
+def calculate_rt_deviance_mean(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    window: int = 3
+) -> List[Tuple[str, pd.DataFrame]]:
+    """
+    RTの平均との差の絶対値 D_t を計算し、直前試行で平滑化する。
+    D_t_smooth = mean(D_{t-1}, D_{t-2}, D_{t-3})
+    """
+    updated = []
+    for subj_id, df in concat_list:
+        work = df.copy()
+        if "rt" not in work.columns:
+            raise ValueError("DataFrame lacks 'rt' column.")
+        rt = pd.to_numeric(work["rt"], errors="coerce")
+        rt_mean = rt.mean()
+        dev = (rt - rt_mean).abs()
+        work["rt_deviance"] = dev
+        work["rt_deviance_mean"] = dev.shift(1).rolling(window=window, min_periods=1).mean()
+        updated.append((subj_id, work))
+    return updated
 
 
 def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:

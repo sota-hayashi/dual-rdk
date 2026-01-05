@@ -3,6 +3,7 @@ from typing import List, Tuple
 import json
 
 import pandas as pd
+import numpy as np
 
 from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS
 
@@ -66,7 +67,6 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
     combined_df = pd.DataFrame(combined_rows).reset_index(drop=True)
     return combined_df
 
-
 def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
     """Annotate each trial with whether the target or distractor was chosen.
        0 if target chosen, 1 if distractor chosen, -1 if undecided.
@@ -74,15 +74,28 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     def determine_choice(row):
-        if abs(row["angular_error_target"]) < abs(row["angular_error_distractor"]):
+        if abs(row["angular_error_target"]) < 45.0:
             return 0
-        if abs(row["angular_error_target"]) > abs(row["angular_error_distractor"]):
+        if abs(row["angular_error_distractor"]) < 45.0:
             return 1
-        return -1
+        else:
+            return -1
 
     df["chosen_item"] = df.apply(determine_choice, axis=1)
     return df
 
+def exclude_slow_trials(
+    df: pd.DataFrame,
+    rt_threshold: float = 10000.0
+) -> pd.DataFrame:
+    """
+    データフレームから、RTが rt_threshold ms を超える試行をNaNに置き換える。
+    """
+    df = df.copy()
+    if "rt" not in df.columns:
+        raise ValueError("DataFrame lacks 'rt' column.")
+    df.loc[df["rt"] > rt_threshold, "rt"] = np.nan
+    return df
 
 def load_and_prepare(path: Path) -> pd.DataFrame:
     """Full pipeline: load -> filter -> annotate -> concatenate."""
@@ -90,12 +103,13 @@ def load_and_prepare(path: Path) -> pd.DataFrame:
     trimmed_learning, trimmed_awareness = filter_task_rows(df)
     annotated_learning = annotate_sessions(trimmed_learning)
     concatenated_learning = concatenate_trials(annotated_learning)
+    chosen_learning = annotate_choices(concatenated_learning)
+    filtered_learning = exclude_slow_trials(chosen_learning)
     annotated_awareness = annotate_sessions(trimmed_awareness)
     concatenated_awareness = concatenate_trials(annotated_awareness)
-    annotated_learning = annotate_choices(concatenated_learning)
-    annotated_awareness = annotate_choices(concatenated_awareness)
-    return annotated_learning, annotated_awareness
-
+    chosen_awareness = annotate_choices(concatenated_awareness)
+    filtered_awareness = exclude_slow_trials(chosen_awareness)
+    return filtered_learning, filtered_awareness
 
 def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
     """Load all csv/json in data_dir and return list of (subject_id, concatenated_df)."""
@@ -146,7 +160,6 @@ def extract_rts_from_online_data(data_dir: Path) -> List[float]:
             print(f"Warning: An error occurred while processing {file_path.name}: {e}")
 
     return all_rts
-
 
 def combine_subjects(concat_list: List[Tuple[str, pd.DataFrame]]) -> pd.DataFrame:
     """Concatenate per-subject concatenated data with a subject column."""

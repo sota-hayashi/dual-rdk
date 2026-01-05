@@ -6,7 +6,7 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
-from io.load import combine_subjects
+from io_data.load import combine_subjects
 
 
 def mixed_learning_across_subjects(

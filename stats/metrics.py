@@ -1,7 +1,12 @@
-from typing import Dict, Iterable
+from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
+import pandas as pd
 from scipy.stats import spearmanr, chi2
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+from io_data.load import combine_subjects
 
 
 def permutation_spearman(x: np.ndarray, y: np.ndarray, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
@@ -81,3 +86,28 @@ def cmh_test_2x2(tables: Iterable[Dict[str, int]]) -> Dict[str, float]:
     chi2_stat = (numer ** 2) / denom if denom > 0 else np.nan
     p_val = 1 - chi2.cdf(chi2_stat, df=1) if denom > 0 else np.nan
     return {"chi2": chi2_stat, "p_value": p_val, "dof": 1, "tables": len(n_list)}
+
+
+def anova_rt_by_chosen_item(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, object]:
+    """
+    chosen_item別（-1/0/1）のRT差を一次元配置ANOVAで検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"anova": pd.DataFrame(), "group_stats": pd.DataFrame()}
+
+    work = combined.dropna(subset=["rt", "chosen_item"]).copy()
+    if work.empty:
+        return {"anova": pd.DataFrame(), "group_stats": pd.DataFrame()}
+
+    work["chosen_item"] = work["chosen_item"].astype(int)
+    model = ols("rt ~ C(chosen_item)", data=work).fit()
+    anova_table = sm.stats.anova_lm(model, typ=2)
+    group_stats = work.groupby("chosen_item")["rt"].agg(
+        n="count",
+        mean="mean",
+        std="std"
+    ).reset_index()
+    return {"anova": anova_table, "group_stats": group_stats}

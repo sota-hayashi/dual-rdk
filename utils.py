@@ -5,7 +5,7 @@ from common.config import (
     TRIALS_PER_SESSION,
     ROWS_FOR_AWARENESS,
 )
-from io.load import (
+from io_data.load import (
     load_data,
     filter_task_rows,
     annotate_sessions,
@@ -43,14 +43,14 @@ from features.behavior import (
     count_high_angular_error,
 )
 from features.lapses import (
-    compute_out_of_zone_ratio,
+    compute_out_of_zone_ratio_by_AE,
     compute_mean_distractor_AngularError_ratio,
 )
 from stats.models import mixed_learning_across_subjects
 from viz.plots import (
     plot_reward_by_trial,
     plot_regression_across_subjects,
-    plot_mind_wandering_vs_reward,
+    plot_MW_vs_reward_across_subjects,
     plot_std_distractor_ae_vs_mean_reward,
 )
 
@@ -89,11 +89,11 @@ __all__ = [
     "add_is_target_flag",
     "analyze_target_choice_learning",
     "count_high_angular_error",
-    "compute_out_of_zone_ratio",
+    "compute_out_of_zone_ratio_by_AE",
     "compute_mean_distractor_AngularError_ratio",
     "mixed_learning_across_subjects",
     "plot_reward_by_trial",
     "plot_regression_across_subjects",
-    "plot_mind_wandering_vs_reward",
+    "plot_MW_vs_reward_across_subjects",
     "plot_std_distractor_ae_vs_mean_reward",
 ]
