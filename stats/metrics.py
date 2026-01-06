@@ -7,6 +7,7 @@ import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
 from io_data.load import combine_subjects
+from common.config import TRIALS_PER_SESSION
 
 
 def permutation_spearman(x: np.ndarray, y: np.ndarray, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
@@ -103,9 +104,72 @@ def anova_rt_by_chosen_item(
         return {"anova": pd.DataFrame(), "group_stats": pd.DataFrame()}
 
     work["chosen_item"] = work["chosen_item"].astype(int)
+    # work = work[work["chosen_item"].isin([0, 1])]
     model = ols("rt ~ C(chosen_item)", data=work).fit()
     anova_table = sm.stats.anova_lm(model, typ=2)
     group_stats = work.groupby("chosen_item")["rt"].agg(
+        n="count",
+        mean="mean",
+        std="std"
+    ).reset_index()
+    return {"anova": anova_table, "group_stats": group_stats}
+
+def anova_reward_by_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, object]:
+    """
+    タスクの前期/中期/後期の報酬ポイント差を一元配置ANOVAで検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"anova": pd.DataFrame(), "group_stats": pd.DataFrame()}
+
+    work = combined.dropna(subset=["rt", "reward_points", "num_trial"]).copy()
+    if work.empty:
+        return {"anova": pd.DataFrame(), "group_stats": pd.DataFrame()}
+
+    work["trial_period"] = pd.cut(
+        work["num_trial"],
+        bins=[-1, n_trial - 1, 2 * n_trial - 1],
+        labels=["early", "late"]
+    )
+    work["trial_period"] = work["trial_period"].astype("category")
+    model = ols("reward_points ~ C(trial_period)", data=work).fit()
+    anova_table = sm.stats.anova_lm(model, typ=2)
+    group_stats = work.groupby("trial_period")["reward_points"].agg(
+        n="count",
+        mean="mean",
+        std="std"
+    ).reset_index()
+    return {"anova": anova_table, "group_stats": group_stats}
+
+def anova_count_of_target_choice_by_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, object]:
+    """
+    タスクの前期/中期/後期のターゲット選択数の差を一元配置ANOVA検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"anova": {}, "group_stats": pd.DataFrame()}
+
+    work = combined.dropna(subset=["rt", "chosen_item", "num_trial"]).copy()
+    if work.empty:
+        return {"anova": {}, "group_stats": pd.DataFrame()}
+    work["trial_period"] = pd.cut(
+        work["num_trial"],
+        bins=[-1, n_trial - 1, 2 * n_trial - 1],
+        labels=["early", "late"]
+    )
+    work["trial_period"] = work["trial_period"].astype("category")
+    work["is_target"] = (work["chosen_item"] == 1).astype(int)
+    anova_table = sm.stats.anova_lm(
+        ols("is_target ~ C(trial_period)", data=work).fit(),
+        typ=2
+    )
+    group_stats = work.groupby("trial_period")["is_target"].agg(
         n="count",
         mean="mean",
         std="std"
