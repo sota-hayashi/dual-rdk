@@ -38,7 +38,6 @@ from features.behavior import (
     compute_same_diff_stats,
     analyze_same_diff_across_subjects,
     analyze_after_target_across_subjects,
-    add_is_target_flag,
     analyze_target_choice_learning,
     count_high_angular_error,
 )
@@ -86,7 +85,6 @@ __all__ = [
     "compute_same_diff_stats",
     "analyze_same_diff_across_subjects",
     "analyze_after_target_across_subjects",
-    "add_is_target_flag",
     "analyze_target_choice_learning",
     "count_high_angular_error",
     "compute_out_of_zone_ratio_by_AE",
