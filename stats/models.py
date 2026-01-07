@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
+import statsmodels.api as sm
+from sklearn.linear_model import LogisticRegression
 
 from io_data.load import combine_subjects
+from common.config import TRIALS_PER_SESSION
 
 
 def mixed_learning_across_subjects(
@@ -62,3 +65,69 @@ def mixed_learning_across_subjects(
         "model_tvalues": fit.tvalues.to_dict(),
         "permutation": perm_stats
     }
+
+def logit_regression(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, object]:
+    """
+    Logistic regression to predict target choice (0/1) from trial number.
+    """
+    results = {}
+    for subj_id, combined in concat_list:
+        combined = combined.dropna(subset=["chosen_item", "num_trial"])
+        combined = combined[combined["chosen_item"].isin([0, 1])].copy()
+        # combined = combined[combined["num_trial"] > n_trial - 1]
+        if combined.empty:
+            continue
+        X = combined[["num_trial"]]
+        X = sm.add_constant(X)
+        y = combined["chosen_item"]
+
+        model = sm.Logit(y, X)
+        result = model.fit(disp=0)
+
+        params = result.params
+        pvalues = result.pvalues
+
+        if pvalues.get('num_trial', 1.0) < 0.05:
+            results[subj_id] = {
+                "intercept": params.get('const'),
+                "coef_num_trial": params.get('num_trial'),
+                "p_intercept": pvalues.get('const'),
+                "p_num_trial": pvalues.get('num_trial'),
+                "model": result
+            }
+    return results
+
+def linear_regression(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, object]:
+    """
+    Simple linear regression to predict reward_points from trial number for each subject.
+    """
+    results = {}
+    for subj_id, combined in concat_list:
+        combined = combined.dropna(subset=["reward_points", "num_trial"]).copy()
+        if combined.empty:
+            continue
+            
+        X = combined[["num_trial"]]
+        X = sm.add_constant(X)
+        y = combined["reward_points"]
+
+        model = sm.OLS(y, X)
+        result = model.fit()
+
+        params = result.params
+        pvalues = result.pvalues
+
+        if pvalues.get('num_trial', 1.0) < 0.05:
+            results[subj_id] = {
+                "intercept": params.get('const'),
+                "coef_num_trial": params.get('num_trial'),
+                "p_intercept": pvalues.get('const'),
+                "p_num_trial": pvalues.get('num_trial'),
+                "model": result
+            }
+    return results
