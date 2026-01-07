@@ -75,9 +75,9 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
 
     def determine_choice(row):
         if abs(row["angular_error_target"]) < 45.0:
-            return 0
-        if abs(row["angular_error_distractor"]) < 45.0:
             return 1
+        if abs(row["angular_error_distractor"]) < 45.0:
+            return 0
         else:
             return -1
 
@@ -124,6 +124,12 @@ def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
             "673f0e83fbba6c167eebd6f7",
             "677e4656af6e5525f72fc926",
             "678f3b13379c83cf1027d2ed",
+            "596634e005f2df00017281ae", # 極端にターゲットを選んでいる回数が多い 49/1
+            # "6743c8da977b0d274dad1fc2", # 極端にターゲットを選んでいる回数が多いその２ 41/3
+            "66534b438dbae7a1d0a36a08", # 28試行においてターゲット/ディストラクターを回答していない
+
+            "6755b42b20cf26a928acaa05", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning
+            "67e03ba35f26a1779f406b6a", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning and df_awareness
         ]:
             continue
         try:
