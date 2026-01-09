@@ -13,8 +13,8 @@ from stats.metrics import permutation_sign_test, cmh_test_2x2
 def summarize_chosen_item_errors(concat_list: List[Tuple[str, pd.DataFrame]]) -> pd.DataFrame:
     """
     被験者×chosen_itemごとに、選択に応じた角度誤差の平均と分散を算出する。
-    chosen_item=0 -> angular_error_target
-    chosen_item=1 -> angular_error_distractor
+    chosen_item=1 -> angular_error_target
+    chosen_item=0 -> angular_error_distractor
     """
     combined = combine_subjects(concat_list)
     if combined.empty:
@@ -22,7 +22,7 @@ def summarize_chosen_item_errors(concat_list: List[Tuple[str, pd.DataFrame]]) ->
 
     work = combined[combined["chosen_item"].isin([0, 1])].copy()
     work["error_value"] = np.where(
-        work["chosen_item"] == 0,
+        work["chosen_item"] == 1,
         work["angular_error_target"],
         work["angular_error_distractor"],
     )
@@ -100,9 +100,12 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
     abs_d = work["angular_error_distractor"].abs()
 
     def infer_choice(row):
-        if abs(row["angular_error_target"]) <= abs(row["angular_error_distractor"]):
-            return row["target_group"]
-        return "white" if row["target_group"] == "black" else "black"
+        if row["chosen_item"] == 1:
+            return row["target_group"]  # ターゲット色
+        if row["chosen_item"] == 0:
+            return "white" if row["target_group"] == "black" else "black"  # 反対色=ディストラクター色
+        return np.nan  # -1は除外
+
 
     work["chosen_color"] = work.apply(infer_choice, axis=1)
     work["chosen_error"] = np.where(
@@ -276,13 +279,6 @@ def analyze_after_target_across_subjects(concat_list: List[Tuple[str, pd.DataFra
         tables.append(stats["counts"])
     cmh_stats = cmh_test_2x2(tables)
     return {"per_subject": per_subject, "cmh": cmh_stats}
-
-
-def add_is_target_flag(df: pd.DataFrame) -> pd.DataFrame:
-    """Add is_target=1 if reward_points>0 else 0."""
-    out = df.copy()
-    out["is_target"] = np.where(out["reward_points"] > 0, 1, 0)
-    return out
 
 
 def analyze_target_choice_learning(df: pd.DataFrame) -> pd.DataFrame:
