@@ -459,6 +459,7 @@
 
 
     // #region ----- ハイパーパラメータの定義 -----
+    const practiceTrials = 10;
     const numSessions = 1;
     const numTrials = 50;
     const numProbes = 8;
@@ -665,6 +666,7 @@
 
     // #region ----- 矢印キーでバーを回転させ回答角度を記録する試行テンプレート（タップで一度ずつになっていないのと，長押しで2段階くらいの速度を用意したい） -----
     let responseAngle = 90;
+    let randomAngle;
 
     const direction_response_trial = {
       type: jsPsychHtmlKeyboardResponse,
@@ -682,7 +684,10 @@
       `,
       choices: ['Enter'],
       on_load: function() {
-        responseAngle = Math.floor(Math.random() * 360) % 360;
+        // バーの初期値をランダムに設定
+        responseAngle = Math.floor(Math.random() * 360);
+        randomAngle = responseAngle;
+        console.log(`Initial response angle: ${randomAngle} degrees`);
         const bar = document.getElementById('bar');
         bar.style.transform = `translate(-50%, -50%) rotate(${responseAngle}deg)`;
         const keysDown = { ArrowLeft: false, ArrowRight: false };
@@ -756,6 +761,8 @@
         });
       },
       on_finish: function(data) {
+        // バーの初期角度をここで保存
+        data.random_initial_angle = randomAngle;
         data.response_angle_css = responseAngle;
         const convertedAngle = (450 - responseAngle + 360) % 360;
         data.response_angle_rdk = convertedAngle;
@@ -816,35 +823,67 @@
   
     // #region ----- 実験手順の構築・実行 -----
     timeline.push(welcome, instructions);
-      // #region 練習セッションの構築 
-    const rdk_practice_1 = {
+      // #region 練習セッションの構築
+    const practiceDotCounts = [];
+    for (let i = 0; i < practiceTrials; i++) {
+      const randomDots = Math.floor(Math.random() * 51) + 50;
+      practiceDotCounts.push([100, randomDots]);
+    }
+    const shuffledDotCounts = jsPsych.randomization.shuffle(practiceDotCounts);
+    const swapIndices = jsPsych.randomization.sampleWithoutReplacement(
+      [...Array(practiceTrials).keys()],
+      5
+    );
+    swapIndices.forEach((idx) => {
+      shuffledDotCounts[idx] = [shuffledDotCounts[idx][1], shuffledDotCounts[idx][0]];
+    });
+
+    const practiceAngles = Array.from({ length: practiceTrials }, () => ([
+      Math.floor(Math.random() * 360),
+      Math.floor(Math.random() * 360)
+    ]));
+
+    const practiceTimeVariables = shuffledDotCounts.map((dotPair, index) => {
+      const directions = practiceAngles[index];
+      const targetGroup = dotPair[0] === 100 ? "white" : "black";
+      const targetIndex = targetGroup === "white" ? 0 : 1;
+      return {
+        dots: dotPair,
+        directions,
+        target_group: targetGroup,
+        target_index: targetIndex,
+        condition_label: "practice"
+      };
+    });
+
+    const rdk_practice_template = {
       type: jsPsychRdk,
-      number_of_dots: [50, 100],
-      coherent_direction: [10, 100],
-      correct_choice: ['a'],
+      number_of_dots: jsPsych.timelineVariable("dots"),
+      coherent_direction: jsPsych.timelineVariable("directions"),
+      correct_choice: ["a"],
       trial_duration: 2000,
       response_ends_trial: false,
-      background_color: '#AAA',
+      background_color: "#AAA",
       number_of_apertures: 2,
       border: true,
-      border_color: 'transparent',
+      border_color: "transparent",
       border_thickness: 2,
       aperture_width: 300,
       aperture_height: 300,
-      aperture_center_x: () => window.innerWidth/2,
-      aperture_center_y: () => window.innerHeight/2,
+      aperture_center_x: () => window.innerWidth / 2,
+      aperture_center_y: () => window.innerHeight / 2,
       RDK_type: 3,
-      dot_color: ['white', 'black'],
+      dot_color: ["white", "black"],
       coherence: [1.0, 1.0],
       fixation_cross: true,
       fixation_cross_width: 15,
       fixation_cross_height: 15,
-      fixation_cross_color: '#111',
+      fixation_cross_color: "#111",
       fixation_cross_thickness: 1,
       data: {
-        target_group: 'black',
-        target_index: 1,
-        condition_label: 'B_H_vs_W_L'
+        target_group: jsPsych.timelineVariable("target_group"),
+        target_index: jsPsych.timelineVariable("target_index"),
+        condition_label: jsPsych.timelineVariable("condition_label")
       },
       on_finish: function(data) {
         data.target_direction = data.coherent_direction[data.target_index];
@@ -856,89 +895,12 @@
         };
       }
     };
-    const rdk_practice_2 = {
-    type: jsPsychRdk,
-      number_of_dots: [100, 50],
-      coherent_direction: [150, 30],
-      correct_choice: ['a'],
-      trial_duration: 2000,
-      response_ends_trial: false,
-      background_color: '#AAA',
-      number_of_apertures: 2,
-      border: true,
-      border_color: 'transparent',
-      border_thickness: 2,
-      aperture_width: 300,
-      aperture_height: 300,
-      aperture_center_x: () => window.innerWidth/2,
-      aperture_center_y: () => window.innerHeight/2,
-      RDK_type: 3,
-      dot_color: ['white', 'black'],
-      coherence: [1.0, 1.0],
-      fixation_cross: true,
-      fixation_cross_width: 15,
-      fixation_cross_height: 15,
-      fixation_cross_color: '#111',
-      fixation_cross_thickness: 1,
-      data: {
-        target_group: 'white',
-        target_index: 0,
-        condition_label: 'W_H_vs_B_L'
-      },
-      on_finish: function(data) {
-        data.target_direction = data.coherent_direction[data.target_index];
-        data.distractor_direction = data.coherent_direction[1 - data.target_index];
-        lastRdkResult = {
-          target_direction: data.target_direction,
-          distractor_direction: data.distractor_direction,
-          target_group: data.target_group
-        };
-      }
+
+    const practice_procedure = {
+      timeline: [fixation, rdk_practice_template, direction_response_trial, reward_feedback_trial],
+      timeline_variables: practiceTimeVariables
     };
-    const rdk_practice_3 = {
-      type: jsPsychRdk,
-      number_of_dots: [50, 100],
-      coherent_direction: [270, 180],
-      correct_choice: ['a'],
-      trial_duration: 2000,
-      response_ends_trial: false,
-      background_color: '#AAA',
-      number_of_apertures: 2,
-      border: true,
-      border_color: 'transparent',
-      border_thickness: 2,
-      aperture_width: 300,
-      aperture_height: 300,
-      aperture_center_x: () => window.innerWidth/2,
-      aperture_center_y: () => window.innerHeight/2,
-      RDK_type: 3,
-      dot_color: ['white', 'black'],
-      coherence: [1.0, 1.0],
-      fixation_cross: true,
-      fixation_cross_width: 15,
-      fixation_cross_height: 15,
-      fixation_cross_color: '#111',
-      fixation_cross_thickness: 1,
-      data: {
-        target_group: 'black',
-        target_index: 1,
-        condition_label: 'B_H_vs_W_L'
-      },
-      on_finish: function(data) {
-        data.target_direction = data.coherent_direction[data.target_index];
-        data.distractor_direction = data.coherent_direction[1 - data.target_index];
-        lastRdkResult = {
-          target_direction: data.target_direction,
-          distractor_direction: data.distractor_direction,
-          target_group: data.target_group
-        };
-      }
-    };
-    timeline.push(fixation, rdk_practice_1, direction_response_trial, reward_feedback_trial);
-    responseAngle = Math.floor(Math.random() * 360) % 360;
-    timeline.push(fixation, rdk_practice_2, direction_response_trial, reward_feedback_trial);
-    responseAngle = Math.floor(Math.random() * 360) % 360;
-    timeline.push(fixation, rdk_practice_3, direction_response_trial, reward_feedback_trial);
+    timeline.push(practice_procedure);
     timeline.push(finishpractice);
 
       // #endregion
