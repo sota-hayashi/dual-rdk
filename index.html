@@ -148,7 +148,7 @@
           // バックアップのローカル保存を有効にするなら以下を外す
           // jsPsych.data.get().localSave('csv', `experiment_data_${Date.now()}.csv`);
         }
-        window.location.href = "https://app.prolific.com/submissions/complete?cc=C19R3UUA"; 
+        window.location.href = "https://app.prolific.com/submissions/complete?cc=C2OJ7BFR"; 
       }
     });
     // #endregion
@@ -327,11 +327,11 @@
           </p>
 
           <p>
-          You will first complete <strong>three practice trials</strong>. 
+          You will first complete <strong>16 practice trials</strong>. 
           Press the <strong>Enter</strong> key to start the practice phase.
           </p>
 
-          <canvas id="instruction-demo-rdk" width="300" height="300"style="display:block;margin:12px auto; border-radius: 50%;"></canvas>
+          <canvas id="instruction-demo-rdk" width="200" height="200"style="display:block;margin:12px auto; border-radius: 50%;"></canvas>
         </div>
       `,
       choices: ['Enter'],
@@ -459,10 +459,10 @@
 
 
     // #region ----- ハイパーパラメータの定義 -----
-    const practiceTrials = 10;
+    const practiceTrials = 16;
     const numSessions = 1;
-    const numTrials = 50;
-    const numProbes = 8;
+    const numTrials = 48;
+    const numProbes = 24;
     const whiteDots = 100;
     const blackDots = 100;
     const totalDots = whiteDots + blackDots;
@@ -832,16 +832,24 @@
     const shuffledDotCounts = jsPsych.randomization.shuffle(practiceDotCounts);
     const swapIndices = jsPsych.randomization.sampleWithoutReplacement(
       [...Array(practiceTrials).keys()],
-      5
+      Math.floor(practiceTrials / 2)
     );
     swapIndices.forEach((idx) => {
       shuffledDotCounts[idx] = [shuffledDotCounts[idx][1], shuffledDotCounts[idx][0]];
     });
 
-    const practiceAngles = Array.from({ length: practiceTrials }, () => ([
-      Math.floor(Math.random() * 360),
-      Math.floor(Math.random() * 360)
-    ]));
+    const normalizedDiff = (w, b) => {
+      const raw = Math.abs(w - b);
+      return raw > 180 ? 360 - raw : raw;
+    };
+    const practiceAngles = Array.from({ length: practiceTrials }, () => {
+      let angle1, angle2;
+      do {
+        angle1 = Math.floor(Math.random() * 360);
+        angle2 = Math.floor(Math.random() * 360);
+      } while (normalizedDiff(angle1, angle2) < 90);
+      return [angle1, angle2];
+    });
 
     const practiceTimeVariables = shuffledDotCounts.map((dotPair, index) => {
       const directions = practiceAngles[index];
