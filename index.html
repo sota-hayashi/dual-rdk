@@ -318,6 +318,7 @@
           After viewing the RDKs, you will rotate a bar to indicate the perceived direction of the target RDK 
           using the <strong>left</strong> and <strong>right arrow keys</strong>. 
           Press <strong>Enter</strong> when you are satisfied with your response.
+          // 矢印を長押しすると回転が速くなるという説明も入れるべき
           </p>
 
           <p>
@@ -641,6 +642,7 @@
       fixation_cross_color: '#111',
       fixation_cross_thickness: 1,
       data: {
+        phase: "learning-awareness",
         target_group: jsPsych.timelineVariable('target_group'),
         // target_index: jsPsych.timelineVariable('target_index'),
         condition_label: jsPsych.timelineVariable('condition_label'),
@@ -894,6 +896,7 @@
         condition_label: jsPsych.timelineVariable("condition_label")
       },
       on_finish: function(data) {
+        data.phase = "practice";
         data.target_direction = data.coherent_direction[data.target_index];
         data.distractor_direction = data.coherent_direction[1 - data.target_index];
         lastRdkResult = {
