@@ -2,9 +2,10 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, chi2
+from scipy.stats import spearmanr, chi2, ttest_ind
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
+
 
 from io_data.load import combine_subjects
 from common.config import TRIALS_PER_SESSION
@@ -116,7 +117,7 @@ def anova_rt_by_chosen_item(
 
 def anova_reward_by_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
-    n_trial: int = TRIALS_PER_SESSION // 2
+    n_trial: int = TRIALS_PER_SESSION // 3
 ) -> Dict[str, object]:
     """
     タスクの前期/中期/後期の報酬ポイント差を一元配置ANOVAで検定する。
@@ -131,8 +132,8 @@ def anova_reward_by_periods(
 
     work["trial_period"] = pd.cut(
         work["num_trial"],
-        bins=[-1, n_trial - 1, 2 * n_trial - 1],
-        labels=["early", "late"]
+        bins=[-1, n_trial - 1, 2 * n_trial - 1, 3 * n_trial - 1],
+        labels=["early", "middle", "late"]
     )
     work["trial_period"] = work["trial_period"].astype("category")
     model = ols("reward_points ~ C(trial_period)", data=work).fit()
@@ -146,7 +147,7 @@ def anova_reward_by_periods(
 
 def anova_count_of_target_choice_by_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
-    n_trial: int = TRIALS_PER_SESSION // 2
+    n_trial: int = TRIALS_PER_SESSION // 3
 ) -> Dict[str, object]:
     """
     タスクの前期/中期/後期のターゲット選択数の差を一元配置ANOVA検定で検定する。
@@ -160,8 +161,8 @@ def anova_count_of_target_choice_by_periods(
         return {"anova": {}, "group_stats": pd.DataFrame()}
     work["trial_period"] = pd.cut(
         work["num_trial"],
-        bins=[-1, n_trial - 1, 2 * n_trial - 1],
-        labels=["early", "late"]
+        bins=[-1, n_trial - 1, 2 * n_trial - 1, 3 * n_trial - 1],
+        labels=["early", "middle", "late"]
     )
     work["trial_period"] = work["trial_period"].astype("category")
     work["is_target"] = (work["chosen_item"] == 1).astype(int)
@@ -175,3 +176,57 @@ def anova_count_of_target_choice_by_periods(
         std="std"
     ).reset_index()
     return {"anova": anova_table, "group_stats": group_stats}
+
+def t_test_rt_between_choices(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, float]:
+    """
+    ターゲット選択試行とディストラクター選択試行のRT差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    work = combined.dropna(subset=["rt", "chosen_item"]).copy()
+    if work.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    target_rt = work.loc[work["chosen_item"] == 1, "rt"].astype(float)
+    distractor_rt = work.loc[work["chosen_item"] == 0, "rt"].astype(float)
+    if target_rt.empty or distractor_rt.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(target_rt, distractor_rt, equal_var=False)
+    return {"t_stat": t_stat, "p_value": p_value}
+
+def t_test_count_target_choice_between_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    タスクの前半/後半のターゲット選択数の差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    work = combined.dropna(subset=["chosen_item", "num_trial"]).copy()
+    if work.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    first_half = work.loc[work["num_trial"] <= n_trial - 1]
+    second_half = work.loc[work["num_trial"] >= n_trial]
+
+    first_counts = first_half.groupby("subject")["chosen_item"].apply(lambda x: (x == 1).sum())
+    second_counts = second_half.groupby("subject")["chosen_item"].apply(lambda x: (x == 1).sum())
+
+    common_subjects = first_counts.index.intersection(second_counts.index)
+    if common_subjects.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(
+        first_counts.loc[common_subjects],
+        second_counts.loc[common_subjects],
+        equal_var=False
+    )
+    return {"t_stat": t_stat, "p_value": p_value}
