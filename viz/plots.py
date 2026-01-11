@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 from io_data.load import combine_subjects
 from features.lapses import compute_out_of_zone_ratio_by_rt, compute_out_of_zone_ratio_by_AE
 from features.behavior import summarize_chosen_item_errors
+from common.config import TRIALS_PER_SESSION
 
 
 def plot_reward_by_trial(
     df: pd.DataFrame,
-    session_id: int,
     save_path: str = None,
     corner: str = "upper left"
 ):
@@ -22,9 +22,10 @@ def plot_reward_by_trial(
     Scatter plot of trial vs reward for a given session with Pearson r and regression line (95% CI).
     Colors aligned with learning-more-code style: blue dots, red line, red-transparent CI.
     """
-    sub = df[df["num_session"] == session_id].dropna(subset=["num_trial", "reward_points"]).copy()
+    sub = df.dropna(subset=["num_trial", "reward_points", "rt"]).copy()
+    sub = sub[sub["chosen_item"].isin([0, 1])]
     if sub.empty:
-        print(f"No data for session {session_id}")
+        print(f"No data for session reward vs trial plot.")
         return
 
     plt.style.use("seaborn-v0_8-whitegrid")
@@ -51,7 +52,7 @@ def plot_reward_by_trial(
         fontsize=12,
         bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
     )
-    ax.set_title(f"Subject3: Reward vs Trial (session {session_id+1})", fontsize=14)
+    ax.set_title(f"Subject3: Reward vs Trial", fontsize=14)
     ax.set_xlabel("Trial (num_trial)", fontsize=12)
     ax.set_ylabel("Reward points", fontsize=12)
 
@@ -59,6 +60,57 @@ def plot_reward_by_trial(
         plt.savefig(save_path, bbox_inches="tight")
         print(f"Saved plot to {save_path}")
     plt.show()
+
+def plot_logistic_regression_per_subject(
+    df: pd.DataFrame,
+    save_path: str = None
+):
+    """
+    For a single DataFrame, plot logistic regression of chosen_item (0/1) vs num_trial for a given session.
+    """
+    sub = df.dropna(subset=["num_trial", "chosen_item", "rt"]).copy()
+    # sub = sub[sub["num_trial"] > 17]
+    sub = sub[sub["chosen_item"].isin([0, 1])]
+    if sub.empty:
+        print(f"No data for session logistic regression plot.")
+        return
+
+    X = sm.add_constant(sub["num_trial"])
+    model = sm.Logit(sub["chosen_item"], X)
+    fit = model.fit(disp=False)
+    slope = fit.params["num_trial"]
+    pval = fit.pvalues["num_trial"]
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.regplot(
+        x="num_trial",
+        y="chosen_item",
+        data=sub,
+        ax=ax,
+        logistic=True,
+        scatter_kws={"alpha": 0.5},
+        line_kws={"color": "red"},
+        ci=95
+    )
+    ax.set_title(f"Subject: Logistic Regression of Chosen Item vs Trial", fontsize=14)
+    ax.set_xlabel("Trial (num_trial)", fontsize=12)
+    ax.set_ylabel("Chosen Item (0/1)", fontsize=12)
+
+    sig_marker = "*" if pval < 0.05 else ""
+    ax.text(
+        0.05, 0.95,
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(sub)}",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=11,
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+    )
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
+    plt.show()
+    return
 
 
 def plot_regression_across_subjects(concat_list, session_id=0, save_path=None):
@@ -139,6 +191,7 @@ def plot_MW_vs_reward_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     save_path: str = None,
     ooz_index: str = "default",
+    n_trial: int = TRIALS_PER_SESSION // 3,
     ooz_fn: Callable[[pd.DataFrame, float, float], float] = None
 ) -> pd.DataFrame:
     """
@@ -148,7 +201,7 @@ def plot_MW_vs_reward_across_subjects(
     回帰直線、傾き、p値、95%信頼区間を表示。
     """
     ooz_methods = {
-        "default": compute_out_of_zone_ratio_by_AE,
+        "ae_based": compute_out_of_zone_ratio_by_AE,
         "rt_based": compute_out_of_zone_ratio_by_rt,
     }
     func = ooz_fn or ooz_methods.get(ooz_index)
@@ -158,10 +211,13 @@ def plot_MW_vs_reward_across_subjects(
     rows = []
     for subj_id, df in concat_list:
         try:
-            out_ratio = func(df)
+            out_ratio = func(df, n_trial=n_trial)
             valid = df.dropna(subset=["reward_points"])
-            # 今は前後半で分けてMW vs rewardを見ている
-            valid = valid[valid["num_trial"] > 20]
+            # 分割する試行数を指定することで任意の期間の平均報酬を計算できるようにする
+            if n_trial == TRIALS_PER_SESSION:
+                pass
+            else:
+                valid = valid[valid["num_trial"] > n_trial - 1]
             valid = valid[valid["chosen_item"].isin([0, 1])]
             mean_reward = valid["reward_points"].mean() if not valid.empty else np.nan
             rows.append({
@@ -179,7 +235,12 @@ def plot_MW_vs_reward_across_subjects(
         print("Not enough data for regression analysis.")
         return result_df
 
-    rho, pval = spearmanr(result_df["out_of_zone_ratio"], result_df["mean_reward"])
+    X = sm.add_constant(result_df["out_of_zone_ratio"])
+    fit = sm.OLS(result_df["mean_reward"], X).fit()
+    slope = fit.params["out_of_zone_ratio"]
+    pval = fit.pvalues["out_of_zone_ratio"]
+
+    # rho, pval = spearmanr(result_df["out_of_zone_ratio"], result_df["mean_reward"])
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -200,7 +261,7 @@ def plot_MW_vs_reward_across_subjects(
     sig_marker = "*" if pval < 0.05 else ""
     ax.text(
         0.05, 0.95,
-        f"rho = {rho:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(result_df)}",
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(result_df)}",
         transform=ax.transAxes,
         va="top",
         fontsize=11,
@@ -220,7 +281,7 @@ def plot_std_distractor_ae_vs_mean_reward(
     save_path: str = None
 ) -> pd.DataFrame:
     """
-    chosen_item=1 の angular_error_distractor 標準偏差を out_of_the_zone_ratio として使用し、
+    chosen_item=0 の angular_error_distractor 標準偏差を out_of_the_zone_ratio として使用し、
     被験者ごとの mean_reward_points との関係をプロットする。
     横軸: std_dis_AE (ratio)
     縦軸: mean_reward_points
@@ -230,9 +291,9 @@ def plot_std_distractor_ae_vs_mean_reward(
         print("No data for chosen_item error stats.")
         return stats
 
-    dis_stats = stats[stats["chosen_item"] == 1].copy()
+    dis_stats = stats[stats["chosen_item"] == 0].copy()
     if dis_stats.empty:
-        print("No chosen_item=1 data.")
+        print("No chosen_item=0 data.")
         return dis_stats
 
     ratio_df = dis_stats[["subject", "std_error"]].rename(
