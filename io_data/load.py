@@ -28,18 +28,26 @@ def filter_task_rows(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only rows with target_group white/black and drop initial practice block."""
     task_mask = df["target_group"].isin(["white", "black"])
     task_df = df.loc[task_mask].copy()
-    trimmed_df = task_df.iloc[PRACTICE_ROWS:].reset_index(drop=True)
-    trimmed_df_learning = trimmed_df.iloc[:-ROWS_FOR_AWARENESS].copy()
-    trimmed_df_awareness = trimmed_df.iloc[-ROWS_FOR_AWARENESS:].copy()
-    return trimmed_df_learning, trimmed_df_awareness
+    # index.html側でpractice/learning/awarenessを分けていないため、ここで分割する
+    # 改善案: index.html側でphase情報を付与する
+    trimmed_df_practice = task_df.iloc[:PRACTICE_ROWS].reset_index(drop=True)
+    trimmed_df_practice["num_session"] = 0
+    trimmed_df_practice["num_trial"] = trimmed_df_practice.index // 2
+    trimmed_df_learning = task_df.iloc[PRACTICE_ROWS : -ROWS_FOR_AWARENESS].reset_index(drop=True)
+    trimmed_df_learning["num_session"] = 1
+    trimmed_df_learning["num_trial"] = trimmed_df_learning.index // 2
+    trimmed_df_awareness = task_df.iloc[-ROWS_FOR_AWARENESS:].reset_index(drop=True)
+    trimmed_df_awareness["num_session"] = 2
+    trimmed_df_awareness["num_trial"] = trimmed_df_awareness.index // 2
+    return  trimmed_df_practice, trimmed_df_learning, trimmed_df_awareness
 
 
-def annotate_sessions(df: pd.DataFrame) -> pd.DataFrame:
-    """Add num_session and num_trial columns as described."""
-    df = df.copy()
-    df["num_session"] = df.index // ROWS_PER_SESSION
-    df["num_trial"] = (df.index % ROWS_PER_SESSION) // 2
-    return df
+# def annotate_sessions(df: pd.DataFrame) -> pd.DataFrame:
+#     """Add num_session and num_trial columns as described."""
+#     df = df.copy()
+#     df["num_session"] = df.index // ROWS_PER_SESSION
+#     df["num_trial"] = (df.index % ROWS_PER_SESSION) // 2
+#     return df
 
 
 def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
@@ -62,6 +70,8 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
         base["angular_error_distractor"] = follow.get("angular_error_distractor")
         base["rt"] = follow.get("rt")
         base["response_angle_rdk"] = follow.get("response_angle_rdk")
+        base["response_angle_css"] = follow.get("response_angle_css")
+        base["random_initial_angle"] = follow.get("random_initial_angle")
         combined_rows.append(base)
 
     combined_df = pd.DataFrame(combined_rows).reset_index(drop=True)
@@ -80,11 +90,12 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
             return 0
         else:
             return -1
-
+    
+    df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"], axis=1)
     df["chosen_item"] = df.apply(determine_choice, axis=1)
     return df
 
-def exclude_slow_trials(
+def exclude_trials(
     df: pd.DataFrame,
     rt_threshold: float = 10000.0
 ) -> pd.DataFrame:
@@ -100,45 +111,55 @@ def exclude_slow_trials(
 def load_and_prepare(path: Path) -> pd.DataFrame:
     """Full pipeline: load -> filter -> annotate -> concatenate."""
     df = load_data(path)
-    trimmed_learning, trimmed_awareness = filter_task_rows(df)
-    annotated_learning = annotate_sessions(trimmed_learning)
-    concatenated_learning = concatenate_trials(annotated_learning)
+    trimmed_practice, trimmed_learning, trimmed_awareness = filter_task_rows(df)
+    concatenated_practice = concatenate_trials(trimmed_practice)
+    chosen_practice = annotate_choices(concatenated_practice)
+    filtered_practice = exclude_trials(chosen_practice)
+    concatenated_learning = concatenate_trials(trimmed_learning)
     chosen_learning = annotate_choices(concatenated_learning)
-    filtered_learning = exclude_slow_trials(chosen_learning)
-    annotated_awareness = annotate_sessions(trimmed_awareness)
-    concatenated_awareness = concatenate_trials(annotated_awareness)
+    filtered_learning = exclude_trials(chosen_learning)
+    concatenated_awareness = concatenate_trials(trimmed_awareness)
     chosen_awareness = annotate_choices(concatenated_awareness)
-    filtered_awareness = exclude_slow_trials(chosen_awareness)
-    return filtered_learning, filtered_awareness
+    filtered_awareness = exclude_trials(chosen_awareness)
+    return filtered_practice, filtered_learning, filtered_awareness
 
 def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
     """Load all csv/json in data_dir and return list of (subject_id, concatenated_df)."""
+    datasets_practice = []
     datasets_learning = []
     datasets_awareness = []
     for file_path in sorted(list(data_dir.glob("*.csv")) + list(data_dir.glob("*.json"))):
         subj_id = file_path.stem
         if subj_id in [
-            "666306b0bf2de127943c419f",
-            "667aca76f4fb2f1d50d80c2e",
-            "673757f92aa69c13b7841d90",
-            "673f0e83fbba6c167eebd6f7",
-            "677e4656af6e5525f72fc926",
-            "678f3b13379c83cf1027d2ed",
-            "596634e005f2df00017281ae", # 極端にターゲットを選んでいる回数が多い 49/1
-            # "6743c8da977b0d274dad1fc2", # 極端にターゲットを選んでいる回数が多いその２ 41/3
-            "66534b438dbae7a1d0a36a08", # 28試行においてターゲット/ディストラクターを回答していない
+            ## Excluded subjects:
+            ## 2025/12/15に集めたデータのうち、以下の被験者は除外する##
+            # "666306b0bf2de127943c419f",
+            # "667aca76f4fb2f1d50d80c2e",
+            # "673757f92aa69c13b7841d90",
+            # "673f0e83fbba6c167eebd6f7",
+            # "677e4656af6e5525f72fc926",
+            # "678f3b13379c83cf1027d2ed",
+            # "596634e005f2df00017281ae", # 極端にターゲットを選んでいる回数が多い 49/1
+            # # "6743c8da977b0d274dad1fc2", # 極端にターゲットを選んでいる回数が多いその２ 41/3
+            # "66534b438dbae7a1d0a36a08", # 28試行においてターゲット/ディストラクターを回答していない
+            # "6755b42b20cf26a928acaa05", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning
+            # "67e03ba35f26a1779f406b6a", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning and df_awareness
 
-            "6755b42b20cf26a928acaa05", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning
-            "67e03ba35f26a1779f406b6a", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning and df_awareness
+            ## 2026/1/11に集めたデータのうち、以下の被験者は除外する##
+            "5ee7fbc114d0a60f9b076fb6",
+            "650f65aac58fe4dc08bbe23f",
+            "660d675bbdf59327d9deb4ad",
+            "67d1d172e049a486152a5ce9",
         ]:
             continue
         try:
-            concat_df_learning, concat_df_awareness = load_and_prepare(file_path)
+            concat_df_practice, concat_df_learning, concat_df_awareness = load_and_prepare(file_path)
+            datasets_practice.append((subj_id, concat_df_practice))
             datasets_learning.append((subj_id, concat_df_learning))
             datasets_awareness.append((subj_id, concat_df_awareness))
         except Exception as e:
             print(f"Skipping {file_path.name}: {e}")
-    return datasets_learning, datasets_awareness
+    return datasets_practice, datasets_learning, datasets_awareness
 
 
 def extract_rts_from_online_data(data_dir: Path) -> List[float]:
