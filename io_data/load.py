@@ -5,6 +5,7 @@ import json
 import pandas as pd
 import numpy as np
 
+from features.behavior import categorize_subjects_from_hmm_summary
 from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS
 
 
@@ -106,6 +107,9 @@ def exclude_trials(
     if "rt" not in df.columns:
         raise ValueError("DataFrame lacks 'rt' column.")
     df.loc[df["rt"] > rt_threshold, "rt"] = np.nan
+    # if "bad_response" not in df.columns:
+    #     raise ValueError("DataFrame lacks 'bad_response' column.")
+    # df.loc[df["bad_response"] == True, "rt"] = np.nan
     return df
 
 def load_and_prepare(path: Path) -> pd.DataFrame:
@@ -123,13 +127,18 @@ def load_and_prepare(path: Path) -> pd.DataFrame:
     filtered_awareness = exclude_trials(chosen_awareness)
     return filtered_practice, filtered_learning, filtered_awareness
 
-def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
+def load_all_concatenated(
+    data_dir: Path,
+    subjects_include: List[str] = None
+    ) -> List[Tuple[str, pd.DataFrame]]:
     """Load all csv/json in data_dir and return list of (subject_id, concatenated_df)."""
     datasets_practice = []
     datasets_learning = []
     datasets_awareness = []
     for file_path in sorted(list(data_dir.glob("*.csv")) + list(data_dir.glob("*.json"))):
         subj_id = file_path.stem
+        if subjects_include is not None and subj_id not in subjects_include:
+            continue
         if subj_id in [
             ## Excluded subjects:
             ## 2025/12/15に集めたデータのうち、以下の被験者は除外する##
@@ -145,11 +154,46 @@ def load_all_concatenated(data_dir: Path) -> List[Tuple[str, pd.DataFrame]]:
             # "6755b42b20cf26a928acaa05", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning
             # "67e03ba35f26a1779f406b6a", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning and df_awareness
 
+            # # HMMによりスイッチの回数が多かった被験者群
+            # "596634e005f2df00017281ae",
+            # "5cfd24ccf8ff8a00017319d0",
+            # "667aca76f4fb2f1d50d80c2e",
+            # "673a1dcffde7de9c08f6d2e6",
+            # "673f0e83fbba6c167eebd6f7",
+            # "673f4f8fa5b4a47492e30aea",
+            # "6743c8da977b0d274dad1fc2",
+            # "678f3b13379c83cf1027d2ed",
+            # "67f789ca382e36a759a011af",
+            # "66c9b31cbfa4d79905b6414d",
+            # "6133a0d1026a4b5c9c5aaa43",
+            # "67e03ba35f26a1779f406b6a",
+
+
+
             ## 2026/1/11に集めたデータのうち、以下の被験者は除外する##
-            "5ee7fbc114d0a60f9b076fb6",
-            "650f65aac58fe4dc08bbe23f",
-            "660d675bbdf59327d9deb4ad",
-            "67d1d172e049a486152a5ce9",
+            # "5ee7fbc114d0a60f9b076fb6",
+            # # "650f65aac58fe4dc08bbe23f",
+            # "660d675bbdf59327d9deb4ad", # else(-1)がn=12と多い
+            # "67d1d172e049a486152a5ce9", # else(-1)がn=13と多い
+
+            # # "5e92178e8ee4fe54b65b7c39",
+            # # "6932b19c5260dda743fca4af",
+            # # "602e48dbf732e9962e27fdbd",
+            # # "66723b1f7c3cf6961f0868a3",
+
+            # "5671131573f58b0005664333",
+            # "5e92178e8ee4fe54b65b7c39",
+            # "602e48dbf732e9962e27fdbd",
+            # "616033a44ba802b7e18daaa9",
+            # "650f65aac58fe4dc08bbe23f",
+            # "65794b62e4bbf95a4f2c9f03",
+            # "660d675bbdf59327d9deb4ad",
+            # "6614fb6af3c5aa23b962ea2d",
+            # "66723b1f7c3cf6961f0868a3",
+            # "669533c82c03a4d6320159d3",
+            # "67d1d172e049a486152a5ce9",
+            # "692e41b6e14a945652e39997",
+            # "6932b19c5260dda743fca4af",
         ]:
             continue
         try:
@@ -188,13 +232,35 @@ def extract_rts_from_online_data(data_dir: Path) -> List[float]:
 
     return all_rts
 
-def combine_subjects(concat_list: List[Tuple[str, pd.DataFrame]]) -> pd.DataFrame:
-    """Concatenate per-subject concatenated data with a subject column."""
-    rows = []
-    for subj_id, df in concat_list:
-        tmp = df.copy()
-        tmp["subject"] = subj_id
-        rows.append(tmp)
-    if not rows:
-        return pd.DataFrame()
-    return pd.concat(rows, ignore_index=True)
+
+
+def load_hmm_summary(
+    summary_path: Path,
+    needed_columns: List[str] = ["subject", "frac_exploit", "switch_count", "mean_run_explore", "mean_run_exploit", "state_labels", "A", "B", "pi", "loglik", "states","observations", "mapped_observations"]
+    ) -> pd.DataFrame:
+    """Load HMM summary CSV and ensure needed columns are present."""
+    df = pd.read_csv(summary_path)
+    missing = [col for col in needed_columns if col not in df.columns]
+    if missing:
+        raise ValueError(f"HMM summary missing columns: {missing}")
+
+    matrix_columns = ["A", "B", "pi", "states","observations", "mapped_observations"]
+    for col in matrix_columns:
+        # 各列の各要素（文字列）にjson.loadsを適用し、結果をNumPy配列に変換
+        df[col] = df[col].apply(lambda s: np.array(json.loads(s)))
+
+    return df
+
+def load_categorized_subjects(
+    summary_path: Path,
+    needed_columns: List[str] = ["subject", "category"],
+    needed_categories: List[str] = ["explore-exploit-cycling"]
+    ) -> List[str]:
+    """Extract subjects belonging to needed categories from categorized DataFrame."""
+    df = load_hmm_summary(summary_path)
+    categorized_df = categorize_subjects_from_hmm_summary(df)
+    missing = [col for col in needed_columns if col not in categorized_df.columns]
+    if missing:
+        raise ValueError(f"Categorized DataFrame missing columns: {missing}")
+    filtered = categorized_df[categorized_df["category"].isin(needed_categories)]
+    return filtered["subject"].tolist()
