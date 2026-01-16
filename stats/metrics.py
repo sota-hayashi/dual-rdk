@@ -7,7 +7,7 @@ import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
 
-from io_data.load import combine_subjects
+from io_data.utils import combine_subjects
 from common.config import TRIALS_PER_SESSION
 
 
@@ -201,32 +201,32 @@ def t_test_rt_between_choices(
 
 def t_test_count_target_choice_between_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
-    n_trial: int = TRIALS_PER_SESSION // 2
+    n_trial: int = TRIALS_PER_SESSION // 3
 ) -> Dict[str, float]:
     """
     タスクの前半/後半のターゲット選択数の差をt検定で検定する。
     """
-    combined = combine_subjects(concat_list)
-    if combined.empty:
-        return {"t_stat": np.nan, "p_value": np.nan}
+    # combined = combine_subjects(concat_list)
+    results = {}
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+        df = df[df["chosen_item"].isin([0, 1])].copy()
+        if df.empty:
+            continue
+        first_half_choices = df.loc[df["num_trial"] <= n_trial - 1, "chosen_item"]
+        second_half_choices = df.loc[df["num_trial"] >= n_trial, "chosen_item"]
 
-    work = combined.dropna(subset=["chosen_item", "num_trial"]).copy()
-    if work.empty:
-        return {"t_stat": np.nan, "p_value": np.nan}
+        if first_half_choices.empty or second_half_choices.empty:
+            continue
 
-    first_half = work.loc[work["num_trial"] <= n_trial - 1]
-    second_half = work.loc[work["num_trial"] >= n_trial]
-
-    first_counts = first_half.groupby("subject")["chosen_item"].apply(lambda x: (x == 1).sum())
-    second_counts = second_half.groupby("subject")["chosen_item"].apply(lambda x: (x == 1).sum())
-
-    common_subjects = first_counts.index.intersection(second_counts.index)
-    if common_subjects.empty:
-        return {"t_stat": np.nan, "p_value": np.nan}
-
-    t_stat, p_value = ttest_ind(
-        first_counts.loc[common_subjects],
-        second_counts.loc[common_subjects],
-        equal_var=False
-    )
-    return {"t_stat": t_stat, "p_value": p_value}
+        t_stat, p_value = ttest_ind(
+            first_half_choices,
+            second_half_choices,
+            equal_var=False
+        )
+        if p_value < 0.05 and t_stat < 0:
+            results[subj_id] = {
+                "t_stat": t_stat,
+                "p_value": p_value
+            }
+    return results
