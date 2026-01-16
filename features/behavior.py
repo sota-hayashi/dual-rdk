@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.stats import chi2_contingency
 import statsmodels.api as sm
 
-from io_data.load import combine_subjects
+from io_data.utils import combine_subjects
 from stats.metrics import permutation_sign_test, cmh_test_2x2
 
 
@@ -93,6 +93,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"DataFrame lacks required columns: {needed}")
 
     work = df.dropna(subset=needed + ["num_trial"]).copy()
+    # work = work[work["num_trial"] >= 16]
     if work.empty:
         return pd.DataFrame()
 
@@ -329,3 +330,26 @@ def count_high_angular_error(df: pd.DataFrame, threshold: float = 45.0) -> int:
         raise ValueError("angular_error column not found in DataFrame.")
     valid = df.dropna(subset=["angular_error"])
     return int((valid["angular_error"].abs() >= threshold).sum())
+
+def categorize_subjects_from_hmm_summary(
+    hmm_summary: pd.DataFrame,
+    state_label_col: str = "states",
+    switch_count_label_col: str = "switch_count",
+    frac_exploit_label_col: str = "frac_exploit"
+) -> pd.DataFrame:
+    """
+    HMMの状態ラベルと各状態の割合に基づいて、被験者をカテゴリ分けする。
+    """
+    def categorize(states: List[str], switch_count: int, frac_exploit: float) -> str:
+        if states[0] == 0 and states[-1] == 1 and switch_count == 1:
+            return "explore-to-exploit"
+        elif states[0] == 1 and switch_count == 0:
+            return "immediate-exploit"
+        elif switch_count > 1:
+            return "explore-exploit-cycling"
+        else:
+            return "other"
+
+    categorized = hmm_summary.copy()
+    categorized["category"] = categorized.apply(lambda row: categorize(row[state_label_col], row[switch_count_label_col], row[frac_exploit_label_col]), axis=1)
+    return categorized
