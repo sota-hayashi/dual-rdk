@@ -7,8 +7,8 @@ import statsmodels.api as sm
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from io_data.load import combine_subjects
-from features.lapses import compute_out_of_zone_ratio_by_rt, compute_out_of_zone_ratio_by_AE
+from io_data.utils import combine_subjects
+from features.lapses import compute_out_of_zone_ratio_by_rt, compute_out_of_zone_ratio_by_AE, compute_out_of_zone_ratio_of_mean_AE
 from features.behavior import summarize_chosen_item_errors
 from common.config import TRIALS_PER_SESSION
 
@@ -190,8 +190,8 @@ def plot_rt_histogram_all_subjects(
 def plot_MW_vs_reward_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     save_path: str = None,
-    ooz_index: str = "default",
-    n_trial: int = TRIALS_PER_SESSION // 3,
+    ooz_index: str = "ae_mean_based",
+    n_trial: int = TRIALS_PER_SESSION,
     ooz_fn: Callable[[pd.DataFrame, float, float], float] = None
 ) -> pd.DataFrame:
     """
@@ -202,6 +202,7 @@ def plot_MW_vs_reward_across_subjects(
     """
     ooz_methods = {
         "ae_based": compute_out_of_zone_ratio_by_AE,
+        "ae_mean_based": compute_out_of_zone_ratio_of_mean_AE,
         "rt_based": compute_out_of_zone_ratio_by_rt,
     }
     func = ooz_fn or ooz_methods.get(ooz_index)
@@ -395,3 +396,49 @@ def plot_rt_by_trial(
         print(f"Saved plot to {save_path}")
     plt.show()
     return
+
+
+def plot_hmm_subject_result(
+    subject_id: str,
+    hmm_result: dict
+):
+    """
+    Plot chosen_item series and HMM state sequence, plus emission/transition summaries.
+    """
+    obs = hmm_result["observations"]
+    states = hmm_result["states"]
+    A = hmm_result["A"]
+    B = hmm_result["B"]
+    labels = hmm_result["state_labels"]
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, axes = plt.subplots(3, 1, figsize=(10, 8), gridspec_kw={"height_ratios": [2, 1, 2]})
+
+    axes[0].plot(obs, color="#4C72B0", linewidth=1)
+    axes[0].set_title(f"HMM states for subject {subject_id}")
+    axes[0].set_ylabel("chosen_item")
+    axes[0].set_yticks([-1, 0, 1])
+
+    axes[1].plot(states, color="#DD8452", linewidth=1)
+    axes[1].set_ylabel("state")
+    axes[1].set_yticks([0, 1])
+    axes[1].set_yticklabels([labels.get(0, "state0"), labels.get(1, "state1")])
+
+    bar_x = np.arange(B.shape[1])
+    axes[2].bar(bar_x - 0.15, B[0], width=0.3, label=labels.get(0, "state0"))
+    axes[2].bar(bar_x + 0.15, B[1], width=0.3, label=labels.get(1, "state1"))
+    axes[2].set_xticks(bar_x)
+    axes[2].set_xticklabels(["else", "distractor", "target"])
+    axes[2].set_ylabel("emission prob")
+    axes[2].legend(loc="upper right")
+
+    fig.tight_layout()
+    plt.show()
+
+    fig2, ax2 = plt.subplots(figsize=(4, 3))
+    im = ax2.imshow(A, cmap="Blues", vmin=0, vmax=1)
+    ax2.set_title("Transition matrix")
+    ax2.set_xlabel("to")
+    ax2.set_ylabel("from")
+    fig2.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
+    plt.show()
