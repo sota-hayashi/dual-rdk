@@ -4,8 +4,10 @@ import numpy as np
 import pandas as pd
 
 from features.behavior import calculate_rt_moving_mean, calculate_rt_deviance_mean
-from io_data.load import exclude_slow_trials
-def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, lower: float = 45.0, upper: float = 60.0) -> float:
+from io_data.load import exclude_trials
+
+from common.config import TRIALS_PER_SESSION
+def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, n_trial: int = TRIALS_PER_SESSION) -> float:
     """
     各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
 
@@ -22,30 +24,38 @@ def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, lower: float = 45.0, upper
     if valid.empty:
         return np.nan
 
-    n_out_of_zone = (valid["chosen_item"] == -1).sum()
+    #前半と後半で分けてMW vs rewardを見ている
+    # n_out_of_zone = ((valid["chosen_item"] == -1) & (valid["num_trial"] <= n_trial - 1)).sum()
+    n_out_of_zone = ((valid["chosen_item"] == -1)).sum()
     n_total = len(valid)
 
     return n_out_of_zone / n_total if n_total > 0 else np.nan
 
 
-def compute_mean_distractor_AngularError_ratio(df: pd.DataFrame, max_abs_angle: float = 180.0) -> float:
+def compute_out_of_zone_ratio_of_mean_AE(df: pd.DataFrame, max_abs_angle: float = 180.0, n_trial: int = TRIALS_PER_SESSION) -> float:
     """
-    各被験者のdistractorに対する平均角度誤差を計算し、0〜1にスケールする。
+    各被験者の平均角度誤差を計算し、0〜1にスケールする。
     """
-    if "angular_error_distractor" not in df.columns:
-        raise ValueError("DataFrame lacks 'angular_error_distractor' column.")
+    needed = ["angular_error_target","angular_error_distractor","chosen_item"]
+    if not set(needed).issubset(df.columns):
+        raise ValueError(f"DataFrame lacks required columns: {needed}")
     if max_abs_angle <= 0:
         raise ValueError("max_abs_angle must be positive.")
 
-    valid = df["angular_error_distractor"].dropna()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    valid = df.dropna(subset=needed).copy()
     if valid.empty:
         return np.nan
 
-    mean_abs_error = valid.abs().mean()
+    abs_errors = valid.apply(
+        lambda row: abs(row["angular_error_target"]) if row["chosen_item"] == 1 else abs(row["angular_error_distractor"]),
+        axis=1
+    )
+    mean_abs_error = abs_errors.mean()
     scaled = mean_abs_error / max_abs_angle
     return float(np.clip(scaled, 0.0, 1.0))
 
-def compute_out_of_zone_ratio_by_rt(df: pd.DataFrame) -> float:
+def compute_out_of_zone_ratio_by_rt(df: pd.DataFrame, n_trial: int = TRIALS_PER_SESSION) -> float:
     """
     各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
 
@@ -63,7 +73,8 @@ def compute_out_of_zone_ratio_by_rt(df: pd.DataFrame) -> float:
     
     valid = valid[valid["chosen_item"].isin([0, 1])]
     # 今は前後半で分けてMW vs rewardを見ている
-    n_out_of_zone = ((valid["ooz"] == 1)).sum()
+    # n_out_of_zone = ((valid["ooz"] == 1) & (valid["num_trial"] <= n_trial - 1)).sum()
+    n_out_of_zone = (valid["ooz"] == 1).sum()
     n_total = len(valid)
 
     return n_out_of_zone / n_total if n_total > 0 else np.nan
@@ -76,7 +87,7 @@ def label_if_ooz(
     Step1-3 に従ってOOZをラベル付けする。
     OOZ(t) = (M_t < M_mean) and (D_t_smooth > T)
     """
-    with_moving = calculate_rt_moving_mean(concat_list)
+    with_moving = calculate_rt_moving_mean(concat_list, window=3)
     with_deviance = calculate_rt_deviance_mean(with_moving)
 
     medians = []
