@@ -1,6 +1,5 @@
-from typing import Dict, List, Tuple, Iterable
+from typing import Dict, List, Tuple
 import json
-
 import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
@@ -353,3 +352,89 @@ def categorize_subjects_from_hmm_summary(
     categorized = hmm_summary.copy()
     categorized["category"] = categorized.apply(lambda row: categorize(row[state_label_col], row[switch_count_label_col], row[frac_exploit_label_col]), axis=1)
     return categorized
+
+def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Relabel HMM states based on a global criterion and recalculate summaries.
+
+    Args:
+        hmm_results_df: A DataFrame loaded from the HMM summary, 
+                        containing columns like 'B', 'state_labels', 'states'.
+
+    Returns:
+        A DataFrame with summaries where states are aligned across subjects.
+    """
+    if hmm_results_df.empty:
+        return pd.DataFrame()
+
+    # 1. 全被験者のB行列を平均し、グローバルな基準を決定
+    all_b_matrices = hmm_results_df["B"].tolist()
+    if not all_b_matrices:
+        return pd.DataFrame()
+    
+    b_avg = np.mean(all_b_matrices, axis=0)
+    
+    # big_AE_cat = 0 (大きなエラー) の放出確率が高い方を「探索」状態とする
+    big_ae_cat = 0
+    global_explore_idx = int(np.argmax(b_avg[:, big_ae_cat]))
+    global_exploit_idx = 1 - global_explore_idx
+
+    # 2. 各被験者の結果をループし、必要ならラベルを反転・再計算
+    recalculated_summaries = []
+    for index, row in hmm_results_df.iterrows():
+        subj_id = row["subject"]
+        
+        # ローカル（この被験者だけ）の探索状態のインデックスを取得
+        # 'state_labels' is like {0: 'explore', 1: 'exploit'}
+        state_map = row["state_labels"]
+        local_explore_idx = [k for k, v in state_map.items() if v == 'explore'][0]
+        
+        states = row["states"]
+        
+        # ラベルがグローバル基準と不一致なら状態系列を反転
+        if local_explore_idx != global_explore_idx:
+            # 0を1に、1を0に反転
+            states = 1 - np.array(states)
+        
+        # 新しい(正規化された)statesに基づいて統計量を再計算
+        frac_exploit = float(np.mean(states == global_exploit_idx))
+        
+        # run_lengthsの再計算
+        runs = {k: [] for k in range(2)}
+        if len(states) > 0:
+            current = states[0]
+            length = 1
+            for s in states[1:]:
+                if s == current:
+                    length += 1
+                else:
+                    runs[current].append(length)
+                    current = s
+                    length = 1
+            runs[current].append(length)
+        
+        mean_run_explore = np.mean(runs.get(global_explore_idx, [])) if runs.get(global_explore_idx) else np.nan
+        mean_run_exploit = np.mean(runs.get(global_exploit_idx, [])) if runs.get(global_exploit_idx) else np.nan
+        global_state_labels = {
+            global_explore_idx: "explore",
+            global_exploit_idx: "exploit"
+        }
+
+        summary = {
+            "subject": subj_id,
+            "frac_exploit": frac_exploit,
+            "switch_count": int(np.sum(states[1:] != states[:-1])) if len(states) > 1 else 0,
+            "mean_run_explore": mean_run_explore,
+            "mean_run_exploit": mean_run_exploit,
+            "A": json.dumps(row["A"].tolist()),
+            "B": json.dumps(row["B"].tolist()),
+            "pi": json.dumps(row["pi"].tolist()),
+            "state_labels": global_state_labels,
+            "states": json.dumps(states.tolist()),
+            "observations": json.dumps(row["observations"].tolist()),
+            "mapped_observations": json.dumps(row["mapped_observations"].tolist()),
+            "loglik": row["loglik"],
+        }
+        recalculated_summaries.append(summary)
+        
+    return pd.DataFrame(recalculated_summaries)
