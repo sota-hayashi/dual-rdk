@@ -201,32 +201,57 @@ def t_test_rt_between_choices(
 
 def t_test_count_target_choice_between_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
-    n_trial: int = TRIALS_PER_SESSION // 3
+    n_trial: int = TRIALS_PER_SESSION // 2
 ) -> Dict[str, float]:
     """
     タスクの前半/後半のターゲット選択数の差をt検定で検定する。
     """
-    # combined = combine_subjects(concat_list)
-    results = {}
-    for subj_id, df in concat_list:
-        df = df.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-        df = df[df["chosen_item"].isin([0, 1])].copy()
-        if df.empty:
-            continue
-        first_half_choices = df.loc[df["num_trial"] <= n_trial - 1, "chosen_item"]
-        second_half_choices = df.loc[df["num_trial"] >= n_trial, "chosen_item"]
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    if df.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    first_half_choices = df.loc[df["num_trial"] <= n_trial - 1, "chosen_item"]
+    second_half_choices = df.loc[df["num_trial"] >= n_trial, "chosen_item"]
 
-        if first_half_choices.empty or second_half_choices.empty:
-            continue
+    if first_half_choices.empty or second_half_choices.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    t_stat, p_value = ttest_ind(
+        first_half_choices,
+        second_half_choices,
+        equal_var=False
+    )
+    results = {
+        "t_stat": t_stat,
+        "p_value": p_value
+    }
+    return results
 
-        t_stat, p_value = ttest_ind(
-            first_half_choices,
-            second_half_choices,
-            equal_var=False
-        )
-        if p_value < 0.05 and t_stat < 0:
-            results[subj_id] = {
-                "t_stat": t_stat,
-                "p_value": p_value
-            }
+def t_test_reward_points_between_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    タスクの前半/後半の獲得報酬の差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    if df.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "reward_points"]
+    second_half_points = df.loc[df["num_trial"] >= n_trial, "reward_points"]
+
+    if first_half_points.empty or second_half_points.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(
+        first_half_points,
+        second_half_points,
+        equal_var=False
+    )
+    results = {
+            "t_stat": t_stat,
+            "p_value": p_value
+        }
     return results
