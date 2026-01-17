@@ -15,7 +15,7 @@ from common.config import TRIALS_PER_SESSION
 
 def _map_chosen_item(series: pd.Series) -> np.ndarray:
     """Map chosen_item {-1,0,1} to {0,1,2} for categorical HMM."""
-    mapped = series.replace({-1: 0, 0: 1, 1: 2})
+    mapped = series.replace({-1: 0, 0: 1, 1: 1})
     return mapped.to_numpy(dtype=int)
 
 
@@ -131,7 +131,7 @@ def fit_hmm_per_subject(
 
     for init_id in range(n_init):
         A = np.array([[0.9, 0.1], [0.1, 0.9]], dtype=float)
-        B = np.array([[0.34, 0.33, 0.33], [0.2, 0.2, 0.6]], dtype=float)
+        B = np.array([[0.6, 0.4], [0.5, 0.5]], dtype=float)
         pi = np.array([0.5, 0.5], dtype=float)
 
         A = A + rng.normal(0, 0.02, size=A.shape)
@@ -173,10 +173,9 @@ def fit_hmm_per_subject(
     pi = best["pi"]
     states = _viterbi(y, A, B, pi)
 
-    # Assign labels based on target (chosen_item==1 -> category 2)
-    target_cat = 2
-    exploit_state = int(np.argmax(B[:, target_cat]))
-    explore_state = 1 - exploit_state
+    big_AE_cat = 0
+    explore_state = int(np.argmax(B[:, big_AE_cat]))
+    exploit_state = 1 - explore_state
     state_labels = {explore_state: "explore", exploit_state: "exploit"}
 
     switch_count = int(np.sum(states[1:] != states[:-1]))
@@ -188,13 +187,12 @@ def fit_hmm_per_subject(
     for state_id in range(n_states):
         mask = states == state_id
         if not mask.any():
-            state_obs_stats[state_id] = {"target": np.nan, "distractor": np.nan, "else": np.nan}
+            state_obs_stats[state_id] = {"small_AE": np.nan, "big_AE": np.nan}
             continue
         subset = obs[mask]
         state_obs_stats[state_id] = {
-            "target": float(np.mean(subset == 1)),
-            "distractor": float(np.mean(subset == 0)),
-            "else": float(np.mean(subset == -1))
+            "small_AE": float(np.mean((subset == 1) | (subset == 0))),
+            "big_AE": float(np.mean(subset == -1))
         }
 
     summary = {
@@ -223,7 +221,7 @@ def fit_hmm_across_subjects(
     n_iter: int = 100,
     n_init: int = 10,
     random_state: int = 0,
-    save_path: str = "hmm_summary.csv"
+    save_path: str = "hmm_summary_divided_by_AE.csv"
 ) -> Dict[str, object]:
     """
     Fit 2-state categorical HMM for each subject in concat_list.
@@ -261,7 +259,7 @@ def fit_hmm_across_subjects(
     summary_df = pd.DataFrame(summaries)
     if save_path is not None:
         summary_df.to_csv(save_path, index=False)
-    return {"results": results, "summary": summary_df}
+    return summary_df
 
 
 def mixed_learning_across_subjects(
