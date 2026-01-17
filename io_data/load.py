@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Tuple
 import json
+import ast
 
 import pandas as pd
 import numpy as np
@@ -107,9 +108,9 @@ def exclude_trials(
     if "rt" not in df.columns:
         raise ValueError("DataFrame lacks 'rt' column.")
     df.loc[df["rt"] > rt_threshold, "rt"] = np.nan
-    # if "bad_response" not in df.columns:
-    #     raise ValueError("DataFrame lacks 'bad_response' column.")
-    # df.loc[df["bad_response"] == True, "rt"] = np.nan
+    if "bad_response" not in df.columns:
+        raise ValueError("DataFrame lacks 'bad_response' column.")
+    df.loc[df["bad_response"] == True, "rt"] = np.nan
     return df
 
 def load_and_prepare(path: Path) -> pd.DataFrame:
@@ -182,7 +183,6 @@ def load_all_concatenated(
             # # "66723b1f7c3cf6961f0868a3",
 
             # "5671131573f58b0005664333",
-            # "5e92178e8ee4fe54b65b7c39",
             # "602e48dbf732e9962e27fdbd",
             # "616033a44ba802b7e18daaa9",
             # "650f65aac58fe4dc08bbe23f",
@@ -193,6 +193,9 @@ def load_all_concatenated(
             # "669533c82c03a4d6320159d3",
             # "67d1d172e049a486152a5ce9",
             # "692e41b6e14a945652e39997",
+            # "6932b19c5260dda743fca4af",
+            # "5e92178e8ee4fe54b65b7c39",
+            # "6614fb6af3c5aa23b962ea2d",
             # "6932b19c5260dda743fca4af",
         ]:
             continue
@@ -248,6 +251,8 @@ def load_hmm_summary(
     for col in matrix_columns:
         # 各列の各要素（文字列）にjson.loadsを適用し、結果をNumPy配列に変換
         df[col] = df[col].apply(lambda s: np.array(json.loads(s)))
+
+    df['state_labels'] = df['state_labels'].apply(ast.literal_eval)
 
     return df
 
