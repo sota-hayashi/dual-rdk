@@ -14,7 +14,7 @@ from common.config import TRIALS_PER_SESSION
 
 
 def _map_chosen_item(series: pd.Series) -> np.ndarray:
-    """Map chosen_item {-1,0,1} to {0,1,2} for categorical HMM."""
+    """Map chosen_item {-1,0,1} to {0,1,1} for categorical HMM."""
     mapped = series.replace({-1: 0, 0: 1, 1: 1})
     return mapped.to_numpy(dtype=int)
 
