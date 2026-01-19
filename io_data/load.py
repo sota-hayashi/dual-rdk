@@ -6,7 +6,6 @@ import ast
 import pandas as pd
 import numpy as np
 
-from features.behavior import categorize_subjects_from_hmm_summary
 from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS
 
 
@@ -194,10 +193,11 @@ def load_all_concatenated(
             # "67d1d172e049a486152a5ce9",
             # "692e41b6e14a945652e39997",
             # "6932b19c5260dda743fca4af",
-            # "5e92178e8ee4fe54b65b7c39",
-            # "6614fb6af3c5aa23b962ea2d",
-            # "6932b19c5260dda743fca4af",
+            "5e92178e8ee4fe54b65b7c39",
+            "6614fb6af3c5aa23b962ea2d",
+            "6932b19c5260dda743fca4af",
         ]:
+            print(f"Excluding subject {subj_id}")
             continue
         try:
             concat_df_practice, concat_df_learning, concat_df_awareness = load_and_prepare(file_path)
@@ -263,9 +263,8 @@ def load_categorized_subjects(
     ) -> List[str]:
     """Extract subjects belonging to needed categories from categorized DataFrame."""
     df = load_hmm_summary(summary_path)
-    categorized_df = categorize_subjects_from_hmm_summary(df)
-    missing = [col for col in needed_columns if col not in categorized_df.columns]
+    missing = [col for col in needed_columns if col not in df.columns]
     if missing:
         raise ValueError(f"Categorized DataFrame missing columns: {missing}")
-    filtered = categorized_df[categorized_df["category"].isin(needed_categories)]
+    filtered = df[df["category"].isin(needed_categories)]
     return filtered["subject"].tolist()

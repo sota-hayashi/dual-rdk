@@ -330,29 +330,6 @@ def count_high_angular_error(df: pd.DataFrame, threshold: float = 45.0) -> int:
     valid = df.dropna(subset=["angular_error"])
     return int((valid["angular_error"].abs() >= threshold).sum())
 
-def categorize_subjects_from_hmm_summary(
-    hmm_summary: pd.DataFrame,
-    state_label_col: str = "states",
-    switch_count_label_col: str = "switch_count",
-    frac_exploit_label_col: str = "frac_exploit"
-) -> pd.DataFrame:
-    """
-    HMMの状態ラベルと各状態の割合に基づいて、被験者をカテゴリ分けする。
-    """
-    def categorize(states: List[str], switch_count: int, frac_exploit: float) -> str:
-        if states[0] == 0 and states[-1] == 1 and switch_count == 1:
-            return "explore-to-exploit"
-        elif states[0] == 1 and switch_count == 0:
-            return "immediate-exploit"
-        elif switch_count > 1:
-            return "explore-exploit-cycling"
-        else:
-            return "other"
-
-    categorized = hmm_summary.copy()
-    categorized["category"] = categorized.apply(lambda row: categorize(row[state_label_col], row[switch_count_label_col], row[frac_exploit_label_col]), axis=1)
-    return categorized
-
 def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
     """
     Relabel HMM states based on a global criterion and recalculate summaries.
@@ -398,6 +375,17 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
         
         # 新しい(正規化された)statesに基づいて統計量を再計算
         frac_exploit = float(np.mean(states == global_exploit_idx))
+        switch_count = int(np.sum(states[1:] != states[:-1])) if len(states) > 1 else 0
+
+        category = "other"
+        if len(states) > 1:
+            # 動的に決定されたインデックスを使用する
+            if states[0] == global_explore_idx and states[-1] == global_exploit_idx and switch_count == 1:
+                category = "explore-to-exploit"
+            elif states[0] == global_exploit_idx and switch_count == 0:
+                category = "immediate-exploit"
+            elif switch_count > 1:
+                category = "explore-exploit-cycling"
         
         # run_lengthsの再計算
         runs = {k: [] for k in range(2)}
@@ -423,7 +411,7 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
         summary = {
             "subject": subj_id,
             "frac_exploit": frac_exploit,
-            "switch_count": int(np.sum(states[1:] != states[:-1])) if len(states) > 1 else 0,
+            "switch_count": switch_count,
             "mean_run_explore": mean_run_explore,
             "mean_run_exploit": mean_run_exploit,
             "A": json.dumps(row["A"].tolist()),
@@ -433,6 +421,7 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
             "states": json.dumps(states.tolist()),
             "observations": json.dumps(row["observations"].tolist()),
             "mapped_observations": json.dumps(row["mapped_observations"].tolist()),
+            "category": category,
             "loglik": row["loglik"],
         }
         recalculated_summaries.append(summary)
