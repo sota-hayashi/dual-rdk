@@ -37,8 +37,8 @@ def run_default():
     group2 = "immediate-exploit"
     group3 = "explore-exploit-cycling"
     group4 = "other"
-    subjects_include = load_categorized_subjects(SUMMARY_PATH, needed_categories=[group2])
-    print(f"\nSubjects included for analysis): {subjects_include}")
+    subjects_include = load_categorized_subjects(SUMMARY_PATH, needed_categories=[group1])
+    print(f"\nSubjects included for analysis: {subjects_include}")
     all_data_practice, all_data_learning, all_data_awareness = load_all_concatenated(
         Path("data_online_experiment"), 
         subjects_include = subjects_include
