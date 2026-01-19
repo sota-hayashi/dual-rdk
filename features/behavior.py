@@ -145,6 +145,67 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def compute_exploit_target_prob_by_switch(
+    subject_states_list: List[Tuple[str, np.ndarray, dict, np.ndarray]]
+) -> List[Tuple[str, List[float]]]:
+    """
+    各被験者について、explore -> exploit の切り替え後の exploit 区間ごとに
+    target(=1)選択確率を算出する。-1 は平均から除外するが系列は崩さない。
+    Returns: [(subject_id, [prob1, prob2, ...]), ...]
+    """
+    results = []
+    for subj_id, states, state_labels, observations in subject_states_list:
+        if not isinstance(state_labels, dict):
+            raise ValueError("state_labels must be a dict like {state_id: label}")
+
+        label_to_state = {v: k for k, v in state_labels.items()}
+        if "explore" not in label_to_state or "exploit" not in label_to_state:
+            print(f"Skipping {subj_id}: missing explore/exploit labels")
+            continue
+
+        explore_state = label_to_state["explore"]
+        exploit_state = label_to_state["exploit"]
+
+        obs = np.array(observations)
+        st = np.array(states)
+        if len(obs) != len(st):
+            raise ValueError(f"{subj_id}: observations and states length mismatch")
+
+        probs = []
+        t = 1
+        while t < len(st):
+            if st[t - 1] == exploit_state and st[t] == exploit_state:
+                start = t - 1
+                end = t
+                while end < len(st) and st[end] == exploit_state:
+                    end += 1
+                seg = obs[start:end]
+                valid = seg[seg != -1]
+                if valid.size == 0:
+                    probs.append(np.nan)
+                else:
+                    probs.append(float(np.mean(valid == 1)))
+                t = end
+            elif st[t - 1] == explore_state and st[t] == exploit_state:
+                start = t
+                end = t + 1
+                while end < len(st) and st[end] == exploit_state:
+                    end += 1
+                seg = obs[start:end]
+                valid = seg[seg != -1]
+                if valid.size == 0:
+                    probs.append(np.nan)
+                else:
+                    probs.append(float(np.mean(valid == 1)))
+                t = end
+            else:
+                t += 1
+
+        results.append((subj_id, probs))
+
+    return results
+
+
 def analyze_color_accuracy_change_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     alpha: float = 0.05

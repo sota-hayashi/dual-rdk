@@ -258,13 +258,19 @@ def load_hmm_summary(
 
 def load_categorized_subjects(
     summary_path: Path,
-    needed_columns: List[str] = ["subject", "category"],
+    needed_columns: List[str] = ["subject", "category", "states", "state_labels", "observations"],
     needed_categories: List[str] = ["explore-exploit-cycling"]
-    ) -> List[str]:
-    """Extract subjects belonging to needed categories from categorized DataFrame."""
+) -> List[Tuple[str, np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    Extract subjects and their states belonging to needed categories.
+    Returns a list of (subject_id, states_array) tuples.
+    """
     df = load_hmm_summary(summary_path)
     missing = [col for col in needed_columns if col not in df.columns]
     if missing:
         raise ValueError(f"Categorized DataFrame missing columns: {missing}")
+        
     filtered = df[df["category"].isin(needed_categories)]
-    return filtered["subject"].tolist()
+    subject_states_list = list(filtered[['subject', 'states', 'state_labels', 'observations']].to_records(index=False))
+    
+    return subject_states_list

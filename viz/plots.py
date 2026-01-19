@@ -442,3 +442,31 @@ def plot_hmm_subject_result(
     ax2.set_ylabel("from")
     fig2.colorbar(im, ax=ax2, fraction=0.046, pad=0.04)
     plt.show()
+
+
+def plot_exploit_target_prob_by_switch(
+    subject_prob_list: List[Tuple[str, List[float]]]
+):
+    """
+    各被験者の explore->exploit 切り替え後の target選択確率を時系列で表示。
+    横軸: switch回数, 縦軸: target選択確率
+    """
+    if not subject_prob_list:
+        print("No subject data for plotting.")
+        return
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for subj_id, probs in subject_prob_list:
+        if not probs:
+            continue
+        x = np.arange(1, len(probs) + 1)
+        ax.plot(x, probs, marker="o", linewidth=1, alpha=0.7, label=subj_id)
+
+    ax.set_xlabel("Switch count", fontsize=12)
+    ax.set_ylabel("Mean target choice probability", fontsize=12)
+    ax.set_title("Target choice probability after explore->exploit switches", fontsize=14)
+    ax.set_ylim(0, 1)
+    if len(subject_prob_list) <= 10:
+        ax.legend(fontsize=9, loc="best")
+    plt.show()
