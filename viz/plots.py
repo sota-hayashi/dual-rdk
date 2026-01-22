@@ -1,4 +1,5 @@
 from typing import List, Tuple, Callable
+import json
 
 import numpy as np
 import pandas as pd
@@ -6,10 +7,12 @@ from scipy.stats import spearmanr
 import statsmodels.api as sm
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from io_data.utils import combine_subjects
 from features.lapses import compute_out_of_zone_ratio_by_rt, compute_out_of_zone_ratio_by_AE, compute_out_of_zone_ratio_of_mean_AE
 from features.behavior import summarize_chosen_item_errors
+from io_data.load import load_hmm_summary
 from common.config import TRIALS_PER_SESSION
 
 
@@ -63,7 +66,7 @@ def plot_reward_by_trial(
 
 def plot_logistic_regression_per_subject(
     df: pd.DataFrame,
-    save_path: str = None
+    save_path: str = "./fig/logistic_regression_per_subject.pdf"
 ):
     """
     For a single DataFrame, plot logistic regression of chosen_item (0/1) vs num_trial for a given session.
@@ -152,7 +155,9 @@ def plot_regression_across_subjects(concat_list, session_id=0, save_path=None):
 def plot_rt_histogram_all_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     bin_ms: int = 100,
-    save_path: str = None
+    save_path: str = None,
+    fit_lognormal: bool = True,
+    cutoff_ms: float = 10000.0
 ):
     """
     all_data_learning の rt をまとめてヒストグラム表示する。
@@ -163,7 +168,7 @@ def plot_rt_histogram_all_subjects(
         print("No RT data available.")
         return
 
-    rt_values = combined.loc[combined["chosen_item"] == -1, "rt"].dropna().astype(float)
+    rt_values = combined["rt"].dropna().astype(float)
     if rt_values.empty:
         print("No RT data available.")
         return
@@ -175,11 +180,35 @@ def plot_rt_histogram_all_subjects(
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.hist(rt_values, bins=bins, color="#4C72B0", alpha=0.8, edgecolor="white")
+    ax.hist(rt_values, bins=bins, color="#4C72B0", alpha=0.8, edgecolor="white", density=fit_lognormal)
     ax.set_xlabel("RT (ms)", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
     ax.set_title("RT Histogram (All Subjects)", fontsize=14)
-    ax.legend([f"n={len(rt_values)}"], loc="upper right", fontsize=11)
+
+    if fit_lognormal:
+        log_rt = np.log(rt_values)
+        mu = log_rt.mean()
+        sigma = log_rt.std(ddof=1)
+        x = np.linspace(min_rt, max_rt, 400)
+        pdf = (1 / (x * sigma * np.sqrt(2 * np.pi))) * np.exp(-((np.log(x) - mu) ** 2) / (2 * sigma ** 2))
+        ax.plot(x, pdf, color="red", linewidth=2)
+
+        if cutoff_ms is not None and cutoff_ms > 0:
+            cutoff_log = np.log(cutoff_ms)
+            tail_prob = 1 - 0.5 * (1 + np.math.erf((cutoff_log - mu) / (sigma * np.sqrt(2))))
+            ax.axvline(cutoff_ms, color="gray", linestyle="--", linewidth=1)
+            ax.text(
+                0.98, 0.95,
+                f"cutoff={cutoff_ms:.0f}ms\nlognormal tail≈{tail_prob:.4f}",
+                transform=ax.transAxes,
+                ha="right",
+                va="top",
+                fontsize=10,
+                bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+            )
+        ax.legend(loc="upper right", fontsize=11)
+    else:
+        ax.legend([f"n={len(rt_values)}"], loc="upper right", fontsize=11)
     
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
@@ -469,4 +498,65 @@ def plot_exploit_target_prob_by_switch(
     ax.set_ylim(0, 1)
     if len(subject_prob_list) <= 10:
         ax.legend(fontsize=9, loc="best")
+    plt.show()
+
+
+def plot_frac_exploit_vs_valid_choice_rate(
+    summary_path: Path,
+    subjects_include: List[str] = None
+):
+    """
+    hmm_normalized_summary.csv を読み込み、frac_exploit と
+    mean(observations in {0,1}) の散布図を描画する。
+    """
+    df = load_hmm_summary(summary_path)
+    if df.empty:
+        print("No HMM summary data.")
+        return
+
+    def valid_choice_rate(obs):
+        arr = np.array(obs)
+        for i in range(len(arr)):
+            if arr[i] not in [0, 1]:
+                arr[i] = 0
+        # print(arr[0])
+        return float(np.mean(arr))
+    if subjects_include is not None:
+        print(f"Filtering subjects: {subjects_include}")
+        df = df[df["subject"].isin(subjects_include)].copy()
+    plot_df = df[["subject", "frac_exploit", "observations"]].copy()
+    plot_df["valid_choice_rate"] = plot_df["observations"].apply(valid_choice_rate)
+
+    if len(plot_df) < 3:
+        print("Not enough data for regression analysis.")
+        return
+
+    X = sm.add_constant(plot_df["frac_exploit"])
+    fit = sm.OLS(plot_df["valid_choice_rate"], X).fit()
+    slope = fit.params.get("frac_exploit", np.nan)
+    pval = fit.pvalues.get("frac_exploit", np.nan)
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.regplot(
+        x="frac_exploit",
+        y="valid_choice_rate",
+        data=plot_df,
+        ax=ax,
+        scatter_kws={"alpha": 0.7},
+        line_kws={"color": "red"},
+        ci=95
+    )
+    ax.set_xlabel("frac_exploit", fontsize=12)
+    ax.set_ylabel("mean(observations in {0,1})", fontsize=12)
+    ax.set_title("frac_exploit vs valid choice rate", fontsize=14)
+    sig_marker = "*" if pval < 0.05 else ""
+    ax.text(
+        0.05, 0.95,
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(plot_df)}",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=11,
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+    )
     plt.show()
