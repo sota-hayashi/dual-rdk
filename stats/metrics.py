@@ -223,7 +223,9 @@ def t_test_count_target_choice_between_periods(
     )
     results = {
         "t_stat": t_stat,
-        "p_value": p_value
+        "p_value": p_value,
+        "mean_first_half": first_half_choices.mean(),
+        "mean_second_half": second_half_choices.mean()
     }
     return results
 
@@ -252,6 +254,8 @@ def t_test_reward_points_between_periods(
     )
     results = {
             "t_stat": t_stat,
-            "p_value": p_value
+            "p_value": p_value,
+            "mean_first_half": first_half_points.mean(),
+            "mean_second_half": second_half_points.mean()
         }
     return results
