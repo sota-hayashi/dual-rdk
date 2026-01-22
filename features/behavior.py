@@ -206,6 +206,30 @@ def compute_exploit_target_prob_by_switch(
     return results
 
 
+def compute_target_choice_rate_per_subject(
+    all_df_awareness: List[Tuple[str, pd.DataFrame]]
+) -> pd.DataFrame:
+    """
+    各被験者のターゲット選択確率（chosen_item==1）を算出する。
+    chosen_item は 0/1 のみを対象にする。
+    """
+    rows = []
+    for subj_id, df in all_df_awareness:
+        if "chosen_item" not in df.columns:
+            raise ValueError("DataFrame lacks 'chosen_item' column.")
+        valid = df[df["chosen_item"].isin([0, 1])]
+        if valid.empty:
+            rate = np.nan
+        else:
+            rate = float((valid["chosen_item"] == 1).mean())
+        rows.append({"subject": subj_id, "target_choice_rate": rate})
+
+    result_df = pd.DataFrame(rows)
+    # for _, row in result_df.iterrows():
+        # print(f"{row['subject']}: {row['target_choice_rate']}")
+    return result_df
+
+
 def analyze_color_accuracy_change_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     alpha: float = 0.05
@@ -414,8 +438,8 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
     
     # big_AE_cat = 0 (大きなエラー) の放出確率が高い方を「探索」状態とする
     big_ae_cat = 0
-    global_explore_idx = int(np.argmax(b_avg[:, big_ae_cat]))
-    global_exploit_idx = 1 - global_explore_idx
+    global_explore_idx = int(np.argmax(b_avg[:, big_ae_cat])) # off
+    global_exploit_idx = 1 - global_explore_idx # on        
 
     # 2. 各被験者の結果をループし、必要ならラベルを反転・再計算
     recalculated_summaries = []
