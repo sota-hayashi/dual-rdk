@@ -199,6 +199,9 @@ def load_all_concatenated(
             # "5e6473fbc15dbe1f71eea95b",
 
             # 2026/1/24に集めたデータのうち、以下の被験者は除外する##
+            # 遷移確率が0.9, 0.1の場合と，0.7, 0.3の場合でそれぞれの場合でon-off-cyclingにおいて被っていない被験者を除外
+            # "6614fb6af3c5aa23b962ea2d", 
+            # "67cc3f4c640c0ff4df30a225",
 
         ]:
             print(f"Excluding subject {subj_id}")
@@ -263,7 +266,7 @@ def load_hmm_summary(
 def load_categorized_subjects(
     summary_path: Path,
     needed_columns: List[str] = ["subject", "category", "states", "state_labels", "observations"],
-    needed_categories: List[str] = ["explore-exploit-cycling"]
+    needed_categories: List[str] = ["on-to-on","off-to-on","on-to-off","off-to-off", "on-off-cycling"]
 ) -> List[Tuple[str, np.ndarray, np.ndarray, np.ndarray]]:
     """
     Extract subjects and their states belonging to needed categories.
@@ -275,6 +278,6 @@ def load_categorized_subjects(
         raise ValueError(f"Categorized DataFrame missing columns: {missing}")
         
     filtered = df[df["category"].isin(needed_categories)]
-    subject_states_list = list(filtered[['subject', 'states', 'state_labels', 'observations']].to_records(index=False))
+    subject_states_list = list(filtered[['subject', 'category', 'states', 'state_labels', 'observations']].to_records(index=False))
     
     return subject_states_list
