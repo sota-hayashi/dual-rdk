@@ -146,7 +146,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_exploit_target_prob_by_switch(
-    subject_states_list: List[Tuple[str, np.ndarray, dict, np.ndarray]]
+    subject_states_list: List[Tuple[str, str, np.ndarray, dict, np.ndarray]]
 ) -> List[Tuple[str, List[float]]]:
     """
     各被験者について、explore -> exploit の切り替え後の exploit 区間ごとに
@@ -154,7 +154,7 @@ def compute_exploit_target_prob_by_switch(
     Returns: [(subject_id, [prob1, prob2, ...]), ...]
     """
     results = []
-    for subj_id, states, state_labels, observations in subject_states_list:
+    for subj_id, category, states, state_labels, observations in subject_states_list:
         if not isinstance(state_labels, dict):
             raise ValueError("state_labels must be a dict like {state_id: label}")
 
