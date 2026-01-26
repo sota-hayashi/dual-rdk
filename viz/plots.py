@@ -66,7 +66,7 @@ def plot_reward_by_trial(
 
 def plot_logistic_regression_per_subject(
     df: pd.DataFrame,
-    save_path: str = "./fig/logistic_regression_per_subject.pdf"
+    save_path: str = None
 ):
     """
     For a single DataFrame, plot logistic regression of chosen_item (0/1) vs num_trial for a given session.
