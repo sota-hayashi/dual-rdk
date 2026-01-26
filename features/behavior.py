@@ -462,15 +462,17 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
         frac_exploit = float(np.mean(states == global_exploit_idx))
         switch_count = int(np.sum(states[1:] != states[:-1])) if len(states) > 1 else 0
 
-        category = "other"
+        category = "off-to-off"
         if len(states) > 1:
             # 動的に決定されたインデックスを使用する
             if states[0] == global_explore_idx and states[-1] == global_exploit_idx and switch_count == 1:
-                category = "explore-to-exploit"
+                category = "off-to-on"
             elif states[0] == global_exploit_idx and switch_count == 0:
-                category = "immediate-exploit"
+                category = "on-to-on"
             elif switch_count > 1:
-                category = "explore-exploit-cycling"
+                category = "on-off--cycling"
+            elif states[0] == global_exploit_idx and states[-1] == global_explore_idx and switch_count == 1:
+                category = "on-to-off"
         
         # run_lengthsの再計算
         runs = {k: [] for k in range(2)}
