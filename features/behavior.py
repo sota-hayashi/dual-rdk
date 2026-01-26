@@ -470,7 +470,7 @@ def relabel_hmm_states(hmm_results_df: pd.DataFrame) -> pd.DataFrame:
             elif states[0] == global_exploit_idx and switch_count == 0:
                 category = "on-to-on"
             elif switch_count > 1:
-                category = "on-off--cycling"
+                category = "on-off-cycling"
             elif states[0] == global_exploit_idx and states[-1] == global_explore_idx and switch_count == 1:
                 category = "on-to-off"
         
