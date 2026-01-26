@@ -259,3 +259,35 @@ def t_test_reward_points_between_periods(
             "mean_second_half": second_half_points.mean()
         }
     return results
+
+def t_test_count_target_choice_between_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    first_group: List[str],
+    second_group: List[str],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    ターゲット選択数の差を被験者間でt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    if df.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    group1_choices = df.loc[df["subject"].isin(first_group), "chosen_item"]
+    group2_choices = df.loc[df["subject"].isin(second_group), "chosen_item"]
+
+    if group1_choices.empty or group2_choices.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    t_stat, p_value = ttest_ind(
+        group1_choices,
+        group2_choices,
+        equal_var=False
+    )
+    results = {
+        "t_stat": t_stat,
+        "p_value": p_value,
+        "mean_group1": group1_choices.mean(),
+        "mean_group2": group2_choices.mean()
+    }
+    return results
