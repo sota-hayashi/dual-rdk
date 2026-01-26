@@ -193,9 +193,13 @@ def load_all_concatenated(
             # "67d1d172e049a486152a5ce9",
             # "692e41b6e14a945652e39997",
             # "6932b19c5260dda743fca4af",
-            "5e92178e8ee4fe54b65b7c39",
-            "6614fb6af3c5aa23b962ea2d",
-            "6932b19c5260dda743fca4af",
+            # "5e92178e8ee4fe54b65b7c39",
+            # "6932b19c5260dda743fca4af",
+            # "6614fb6af3c5aa23b962ea2d",
+            # "5e6473fbc15dbe1f71eea95b",
+
+            # 2026/1/24に集めたデータのうち、以下の被験者は除外する##
+
         ]:
             print(f"Excluding subject {subj_id}")
             continue
