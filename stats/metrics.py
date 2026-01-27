@@ -2,7 +2,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, chi2, ttest_ind
+from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
@@ -198,6 +198,35 @@ def t_test_rt_between_choices(
 
     t_stat, p_value = ttest_ind(target_rt, distractor_rt, equal_var=False)
     return {"t_stat": t_stat, "p_value": p_value}
+
+
+def t_test_learning_rate_from_switch_probs(
+    subject_prob_list: List[Tuple[str, List[float]]]
+) -> Dict[str, float]:
+    """
+    被験者ごとの学習率 ((probs[-1] - probs[0]) / (n-1)) を計算し、
+    0との一標本t検定を行う。
+    """
+    rates = []
+    for subj_id, probs in subject_prob_list:
+        if probs is None or len(probs) < 2:
+            continue
+        n = len(probs)
+        rate = (probs[-1] - probs[0]) / (n - 1)
+        if np.isfinite(rate):
+            rates.append(rate)
+
+    if len(rates) == 0:
+        return {"t_stat": np.nan, "p_value": np.nan, "mean_rate": np.nan, "n": 0}
+
+    rates_arr = np.array(rates, dtype=float)
+    t_stat, p_value = ttest_1samp(rates_arr, 0.0)
+    return {
+        "t_stat": t_stat,
+        "p_value": p_value,
+        "mean_rate": float(rates_arr.mean()),
+        "n": len(rates_arr),
+    }
 
 def t_test_count_target_choice_between_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
