@@ -516,30 +516,30 @@ def plot_frac_exploit_vs_valid_choice_rate(
 
     def valid_choice_rate(obs):
         arr = np.array(obs)
-        for i in range(len(arr)):
-            if arr[i] not in [0, 1]:
-                arr[i] = 0
-        # print(arr[0])
-        return float(np.mean(arr))
+        valid = arr[arr != -1] # -1（ターゲット・ディストラクター以外を選択） を除外
+        if valid.size == 0:
+            return np.nan
+        return float(np.mean(valid))
     if subjects_include is not None:
         print(f"Filtering subjects: {subjects_include}")
         df = df[df["subject"].isin(subjects_include)].copy()
     plot_df = df[["subject", "frac_exploit", "observations"]].copy()
+    plot_df["frac_explore"] = 1.0 - plot_df["frac_exploit"]
     plot_df["valid_choice_rate"] = plot_df["observations"].apply(valid_choice_rate)
 
     if len(plot_df) < 3:
         print("Not enough data for regression analysis.")
         return
 
-    X = sm.add_constant(plot_df["frac_exploit"])
+    X = sm.add_constant(plot_df["frac_explore"])
     fit = sm.OLS(plot_df["valid_choice_rate"], X).fit()
-    slope = fit.params.get("frac_exploit", np.nan)
-    pval = fit.pvalues.get("frac_exploit", np.nan)
+    slope = fit.params.get("frac_explore", np.nan)
+    pval = fit.pvalues.get("frac_explore", np.nan)
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.regplot(
-        x="frac_exploit",
+        x="frac_explore",
         y="valid_choice_rate",
         data=plot_df,
         ax=ax,
@@ -547,9 +547,9 @@ def plot_frac_exploit_vs_valid_choice_rate(
         line_kws={"color": "red"},
         ci=95
     )
-    ax.set_xlabel("frac_exploit", fontsize=12)
+    ax.set_xlabel("frac_explore", fontsize=12)
     ax.set_ylabel("mean(observations in {0,1})", fontsize=12)
-    ax.set_title("frac_exploit vs valid choice rate", fontsize=14)
+    ax.set_title("frac_explore vs valid choice rate", fontsize=14)
     sig_marker = "*" if pval < 0.05 else ""
     ax.text(
         0.05, 0.95,
