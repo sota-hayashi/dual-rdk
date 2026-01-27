@@ -180,7 +180,7 @@ def compute_exploit_target_prob_by_switch(
                 while end < len(st) and st[end] == exploit_state:
                     end += 1
                 seg = obs[start:end]
-                valid = seg[seg != -1]
+                valid = seg[seg != -1] # -1（ターゲット・ディストラクター以外を選択） を除外
                 if valid.size == 0:
                     probs.append(np.nan)
                 else:
@@ -192,7 +192,7 @@ def compute_exploit_target_prob_by_switch(
                 while end < len(st) and st[end] == exploit_state:
                     end += 1
                 seg = obs[start:end]
-                valid = seg[seg != -1]
+                valid = seg[seg != -1] # -1（ターゲット・ディストラクター以外を選択） を除外
                 if valid.size == 0:
                     probs.append(np.nan)
                 else:
