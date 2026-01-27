@@ -202,6 +202,9 @@ def load_all_concatenated(
             # 遷移確率が0.9, 0.1の場合と，0.7, 0.3の場合でそれぞれの場合でon-off-cyclingにおいて被っていない被験者を除外
             # "6614fb6af3c5aa23b962ea2d", 
             # "67cc3f4c640c0ff4df30a225",
+            # "68e541cbbf146b5c074849ac",
+            # "696c3f1675addf129b4bff87",
+
 
         ]:
             print(f"Excluding subject {subj_id}")
