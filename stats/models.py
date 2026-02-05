@@ -130,7 +130,7 @@ def fit_hmm_per_subject(
     best = {"loglik": -np.inf}
 
     for init_id in range(n_init):
-        A = np.array([[0.9, 0.1], [0.1, 0.9]], dtype=float)
+        A = np.array([[0.7, 0.3], [0.3, 0.7]], dtype=float)
         B = np.array([[0.5, 0.5], [0.5, 0.5]], dtype=float)
         pi = np.array([0.5, 0.5], dtype=float)
 
@@ -158,7 +158,8 @@ def fit_hmm_per_subject(
                 mask = (y == c)
                 if mask.any():
                     B[:, c] = gamma[mask].sum(axis=0)
-            B = B / B.sum(axis=1, keepdims=True)
+            eps = 1e-3
+            B = (B + eps) / (B + eps).sum(axis=1, keepdims=True)
 
             ll = fb["loglik"]
             if np.abs(ll - prev_ll) < tol:
@@ -168,8 +169,10 @@ def fit_hmm_per_subject(
         if fb["loglik"] > best["loglik"]:
             best = {"A": A, "B": B, "pi": pi, "loglik": fb["loglik"]}
 
+    np.set_printoptions(precision=20, suppress=True)
     A = best["A"]
     B = best["B"]
+    print("B:", B)
     pi = best["pi"]
     states = _viterbi(y, A, B, pi)
 
