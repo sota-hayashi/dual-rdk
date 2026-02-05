@@ -253,6 +253,7 @@ def t_test_count_target_choice_between_periods(
     results = {
         "t_stat": t_stat,
         "p_value": p_value,
+        "mean_total": df["chosen_item"].mean(),
         "mean_first_half": first_half_choices.mean(),
         "mean_second_half": second_half_choices.mean()
     }
