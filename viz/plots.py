@@ -73,29 +73,56 @@ def plot_logistic_regression_per_subject(
     """
     sub = df.dropna(subset=["num_trial", "chosen_item", "rt"]).copy()
     # sub = sub[sub["num_trial"] > 17]
-    sub = sub[sub["chosen_item"].isin([0, 1])]
-    if sub.empty:
+    sub_irrelevant = sub[sub["chosen_item"] == -1]
+    sub_relevant = sub[sub["chosen_item"].isin([0, 1])]
+    if sub_relevant.empty:
         print(f"No data for session logistic regression plot.")
         return
 
-    X = sm.add_constant(sub["num_trial"])
-    model = sm.Logit(sub["chosen_item"], X)
+    X = sm.add_constant(sub_relevant["num_trial"])
+    model = sm.Logit(sub_relevant["chosen_item"], X)
     fit = model.fit(disp=False)
     slope = fit.params["num_trial"]
     pval = fit.pvalues["num_trial"]
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 5))
+
+    # chosen_item == -1 の点を赤色でプロット
+    if not sub_irrelevant.empty:
+        sns.scatterplot(
+            x="num_trial",
+            y="chosen_item",
+            data=sub_irrelevant,
+            ax=ax,
+            color="red",
+            alpha=0.5,
+            label="Irrelevant Choice (-1)"
+        )
+
+    # chosen_item が 0 または 1 の点をデフォルト色（青）でプロット
+    sns.scatterplot(
+        x="num_trial",
+        y="chosen_item",
+        data=sub_relevant,
+        ax=ax,
+        color="blue",
+        alpha=0.5,
+        label="Relevant Choice (0 or 1)"
+    )
+
+    # 回帰直線と信頼区間のみを描画 (点は描画しない)
     sns.regplot(
         x="num_trial",
         y="chosen_item",
-        data=sub,
+        data=sub_relevant,
         ax=ax,
         logistic=True,
-        scatter_kws={"alpha": 0.5},
+        scatter=False,  # 点は描画しない
         line_kws={"color": "red"},
         ci=95
     )
+    ax.legend(loc="lower left")
     ax.set_title(f"Subject: Logistic Regression of Chosen Item vs Trial", fontsize=14)
     ax.set_xlabel("Trial (num_trial)", fontsize=12)
     ax.set_ylabel("Chosen Item (0/1)", fontsize=12)
@@ -103,7 +130,7 @@ def plot_logistic_regression_per_subject(
     sig_marker = "*" if pval < 0.05 else ""
     ax.text(
         0.05, 0.95,
-        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(sub)}",
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(sub_relevant)}",
         transform=ax.transAxes,
         va="top",
         fontsize=11,
@@ -517,14 +544,21 @@ def plot_frac_exploit_vs_valid_choice_rate(
     def valid_choice_rate(obs):
         arr = np.array(obs)
         valid = arr[arr != -1] # -1（ターゲット・ディストラクター以外を選択） を除外
+        # print(np.sum(arr[0:23] == -1))
+        # print(np.sum(arr[24:] == -1))
+        # print(np.sum(arr == -1))
         if valid.size == 0:
             return np.nan
-        return float(np.mean(valid))
+        valid1 = valid[:23]
+        valid2 = valid[23:]
+        print(valid.size)
+        return float(np.mean(valid1))
     if subjects_include is not None:
         print(f"Filtering subjects: {subjects_include}")
         df = df[df["subject"].isin(subjects_include)].copy()
-    plot_df = df[["subject", "frac_exploit", "observations"]].copy()
-    plot_df["frac_explore"] = 1.0 - plot_df["frac_exploit"]
+    plot_df = df[["subject", "frac_exploit", "observations", "states"]].copy()
+    # plot_df["frac_explore"] = 1.0 - plot_df["frac_exploit"]
+    plot_df["frac_explore"] = 1 - plot_df["states"].apply(lambda s: np.mean(np.array(s[:23]) == 1))
     plot_df["valid_choice_rate"] = plot_df["observations"].apply(valid_choice_rate)
 
     if len(plot_df) < 3:
