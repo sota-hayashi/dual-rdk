@@ -158,7 +158,7 @@ def fit_hmm_per_subject(
                 mask = (y == c)
                 if mask.any():
                     B[:, c] = gamma[mask].sum(axis=0)
-            eps = 1e-3
+            eps = 1e-4
             B = (B + eps) / (B + eps).sum(axis=1, keepdims=True)
 
             ll = fb["loglik"]
