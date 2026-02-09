@@ -176,7 +176,7 @@ def load_all_concatenated(
             # "660d675bbdf59327d9deb4ad", # else(-1)がn=12と多い
             # "67d1d172e049a486152a5ce9", # else(-1)がn=13と多い
 
-            # # "5e92178e8ee4fe54b65b7c39",
+            "5e92178e8ee4fe54b65b7c39", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択する傾向が若干ある．
             # # "6932b19c5260dda743fca4af",
             # # "602e48dbf732e9962e27fdbd",
             # # "66723b1f7c3cf6961f0868a3",
@@ -200,10 +200,42 @@ def load_all_concatenated(
 
             # 2026/1/24に集めたデータのうち、以下の被験者は除外する##
             # 遷移確率が0.9, 0.1の場合と，0.7, 0.3の場合でそれぞれの場合でon-off-cyclingにおいて被っていない被験者を除外
-            # "6614fb6af3c5aa23b962ea2d", 
+            "6614fb6af3c5aa23b962ea2d", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択している．
+            "63039f41fa5c21d483996be2", # 上に同様
             # "67cc3f4c640c0ff4df30a225",
             # "68e541cbbf146b5c074849ac",
             # "696c3f1675addf129b4bff87",
+            
+            # 一旦2026/2/5までのデータ
+            # '5671131573f58b0005664333', '5b2150d538b0be00014137fb', '5dd0dce9ed7ea418f59810e4', '5ee7fbc114d0a60f9b076fb6', '65ccca52871269168cc029b5', '65f2f5ae1f9747ed36bd7226', '6613f83d1a9cf059d0af91ec', '6631997e0554bb6d25062fd4', '66723b1f7c3cf6961f0868a3', '669533c82c03a4d6320159d3', '66cc85c87017ef38adbaebc6', '67911b9be5af0ac0763a28c7', '67eb5332af03cf75862d5e87', '6917b43630e666e39c18fa7b', '692e41b6e14a945652e39997', '696c3f1675addf129b4bff87', '5987bfb80e411a0001d83837', '5d617ba9364f9a0019f1dac3', '5e6473fbc15dbe1f71eea95b', '602e48dbf732e9962e27fdbd', '616033a44ba802b7e18daaa9', '650f65aac58fe4dc08bbe23f', '654fd3d72b14d852c7fff2b4', '65794b62e4bbf95a4f2c9f03', '65ff850ad8ac7b0e4cf9ec57', '66cb3e461d3bc3f143a834bb', '682b23f345fc428cc9586a06', '68e541cbbf146b5c074849ac', '69126cc06844917f79f2ec58', '656bb5b282d8f0267db9d167', '65fd4ff0fac6ac4525f54b88', '67cc3f4c640c0ff4df30a225', '69124176667ec0990dfb9da1', '660d675bbdf59327d9deb4ad', '67d1d172e049a486152a5ce9', '6932b19c5260dda743fca4af', '693348df632d7f923e83d2bb',
+            
+            ## 2026/2/5に集めたデータのうち、以下の被験者は除外する##
+            # "697cc09a8dd7b2c8061ff4e5",# task-irrelevantな試行が19試行
+            "667bd577710d52a05ac09036",# シグモイド関数のフィッティングで有意な負の結果が出た，つまり試行を重ねるとディストラクターを選択するようになっていった参加者
+            # 色バイアスが強い被験者群（80%以上の偏りを示す被験者群）
+            # in group on-to-on
+            "5671131573f58b0005664333", # b=3, w=45
+            "65fd4ff0fac6ac4525f54b88", # b=45, w=0
+            "66a50231bda26954b4e43e7d", # b= 39, w=9
+            "696c3f1675addf129b4bff87", # b=43, w=5
+            # in group off-to-on
+            "62b2080f8f89f2f15c47d9ba", # b=39, w=5
+            # in group on-to-off
+            "69126cc06844917f79f2ec58", # b=37, w=8
+            "65794b62e4bbf95a4f2c9f03", # b=30, w=6
+            "616033a44ba802b7e18daaa9", # b=32, w=4
+            # in group off-to-off
+            "66cb3e461d3bc3f143a834bb", # b=44, w=3
+            "67d1be8cb9034e17620cd166", # b=46, w=0
+            "665f23fcab11c11fb972a667", # b=46, w=0
+            # in group on-off-cycling
+            "693348df632d7f923e83d2bb", # b=43, w=2
+            "68238de3a3ba8b99fef9b7ca", # b=46, w=2
+            "677d283c3ac4eacdfc7a59b4", # b=39, w=1
+            "611ce44efa3822c780ae383e", # b=35, w=2
+            "615ab5adc70f6edcacba5860", # b=9, w=32 # この被験者においては78%の偏りを示している
+
+
 
 
         ]:
