@@ -87,7 +87,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
       target_group=white かつ |target|<|distractor| -> white 選択, 逆なら black 選択（black target も同様）。
       ※誤って反対方向を選んだケースは一旦無視（必要なら別途フラグ化）。
     """
-    needed = ["angular_error_target", "angular_error_distractor", "target_group", "reward_points"]
+    needed = ["angular_error_target", "angular_error_distractor", "target_group", "reward_points", "chosen_item"]
     if not set(needed).issubset(df.columns):
         raise ValueError(f"DataFrame lacks required columns: {needed}")
 
@@ -122,6 +122,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
             rows.append({
                 "color": color,
                 "n": len(sub),
+                "mean_target_choice": sub["chosen_item"].mean(),
                 "mean_abs_error": sub["chosen_error"].abs().mean(),
                 "slope": np.nan,
                 "p_value": np.nan,
@@ -135,6 +136,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
         rows.append({
             "color": color,
             "n": len(sub),
+            "mean_target_choice": sub["chosen_item"].mean(),
             "mean_reward": sub["reward_points"].mean(),
             "mean_abs_error": sub["chosen_error"].abs().mean(),
             "slope": slope,
