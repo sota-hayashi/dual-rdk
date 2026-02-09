@@ -215,6 +215,7 @@ def t_test_learning_rate_from_switch_probs(
         rate = (probs[-1] - probs[0]) / (n - 1)
         if np.isfinite(rate):
             rates.append(rate)
+        print(f"Subject {subj_id}: learning rate = {rate}")
 
     if len(rates) == 0:
         return {"t_stat": np.nan, "p_value": np.nan, "mean_rate": np.nan, "n": 0}
@@ -297,27 +298,44 @@ def t_test_count_target_choice_between_subjects(
     n_trial: int = TRIALS_PER_SESSION // 2
 ) -> Dict[str, float]:
     """
-    ターゲット選択数の差を被験者間でt検定で検定する。
+    参加者ごとのターゲット選択確率の前半→後半の変化量を算出し、
+    その変化量の群間差をt検定で検定する。
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
     df = df[df["chosen_item"].isin([0, 1])].copy()
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
-    group1_choices = df.loc[df["subject"].isin(first_group), "chosen_item"]
-    group2_choices = df.loc[df["subject"].isin(second_group), "chosen_item"]
+    first_mask = df["num_trial"] <= n_trial - 1
+    second_mask = df["num_trial"] >= n_trial
 
-    if group1_choices.empty or group2_choices.empty:
+    per_subject = (
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+          .dropna(subset=["half"])
+          .groupby(["subject", "half"], as_index=False)["chosen_item"]
+          .mean()
+          .pivot(index="subject", columns="half", values="chosen_item")
+    )
+    per_subject = per_subject.dropna(subset=["first", "second"]).copy()
+    per_subject["delta"] = per_subject["second"] - per_subject["first"]
+
+    group1_delta = per_subject.loc[per_subject.index.isin(first_group), "delta"]
+    group2_delta = per_subject.loc[per_subject.index.isin(second_group), "delta"]
+
+    if group1_delta.empty or group2_delta.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
+
     t_stat, p_value = ttest_ind(
-        group1_choices,
-        group2_choices,
+        group1_delta,
+        group2_delta,
         equal_var=False
     )
     results = {
         "t_stat": t_stat,
         "p_value": p_value,
-        "mean_group1": group1_choices.mean(),
-        "mean_group2": group2_choices.mean()
+        "mean_delta_group1": float(group1_delta.mean()),
+        "mean_delta_group2": float(group2_delta.mean()),
+        "n_group1": int(group1_delta.shape[0]),
+        "n_group2": int(group2_delta.shape[0])
     }
     return results
