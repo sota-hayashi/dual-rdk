@@ -78,7 +78,49 @@ def calculate_rt_deviance_mean(
         updated.append((subj_id, work))
     return updated
 
+def compute_AE_variance(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, float]]:
+    """
+    各被験者のAEの分散を計算する。
+    chosen_item=1 -> angular_error_target
+    chosen_item=0 -> angular_error_distractor
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        work = df.copy()
+        work = work[work["chosen_item"].isin([0, 1])].copy()
+        work["error_value"] = np.where(
+            work["chosen_item"] == 1,
+            work["angular_error_target"],
+            work["angular_error_distractor"],
+        )
+        var = work["error_value"].var(ddof=1)
+        results.append((subj_id, var))
+    return results
 
+def compute_target_choice_rate_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    各被験者のtarget選択確率（chosen_item==1）を算出する。
+    chosen_item は 0/1 のみを対象にする。
+    """
+    rows = []
+    for subj_id, df in concat_list:
+        if "chosen_item" not in df.columns:
+            raise ValueError("DataFrame lacks 'chosen_item' column.")
+        df = df.dropna(subset=["rt"]).copy()
+        valid = df[df["chosen_item"].isin([0, 1])]
+        if valid.empty:
+            rate = np.nan
+        else:
+            rate = float((valid["chosen_item"] == 1).mean())
+        rows.append({"subject": subj_id, "target_choice_rate": rate})
+
+    result_df = pd.DataFrame(rows)
+    return result_df
 def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
     """
     被験者内解析: 白/黒のどちらを選んだか推定し、色ごとに角度誤差の変化を回帰で検定。
@@ -87,7 +129,7 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
       target_group=white かつ |target|<|distractor| -> white 選択, 逆なら black 選択（black target も同様）。
       ※誤って反対方向を選んだケースは一旦無視（必要なら別途フラグ化）。
     """
-    needed = ["angular_error_target", "angular_error_distractor", "target_group", "reward_points", "chosen_item"]
+    needed = ["angular_error_target", "angular_error_distractor", "target_group", "reward_points", "chosen_item", "rt"]
     if not set(needed).issubset(df.columns):
         raise ValueError(f"DataFrame lacks required columns: {needed}")
 
@@ -207,28 +249,76 @@ def compute_exploit_target_prob_by_switch(
 
     return results
 
+def compute_target_choice_prob_by_task_irrelevant_switch(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> List[Tuple[str, List[float]]]:
+    """
+    各被験者について、task-irrelevant 切り替え後の各区間ごとに
+    target(=1)選択確率を算出する。-1 は平均から除外するが系列は崩さない。
+    Returns: [(subject_id, [prob1, prob2, ...]), ...]
+    """
+    results = []
+    for subj_id, df in concat_list:
+        if not set(["chosen_item", "rt"]).issubset(df.columns):
+            raise ValueError("DataFrame lacks required columns: chosen_item, rt")
 
-def compute_target_choice_rate_per_subject(
-    all_df_awareness: List[Tuple[str, pd.DataFrame]]
+        work = df.dropna(subset=["chosen_item", "rt"]).copy()
+        work = work["chosen_item"].to_numpy()
+        print(f"Processing subject {subj_id} with {len(work)} trials")
+
+        probs = []
+        t = 1
+        while t < len(work):
+            if work[t - 1] != -1 and work[t] != -1:
+                start = t - 1
+                end = t
+                while end < len(work) and work[end] != -1:
+                    end += 1
+                seg = work[start:end]
+                if seg.size == 0:
+                    probs.append(np.nan)
+                else:
+                    probs.append(float(np.mean(seg == 1)))
+                t = end
+            elif work[t - 1] == -1 and work[t] != -1:
+                start = t
+                end = t + 1
+                while end < len(work) and work[end] == -1:
+                    end += 1
+                seg = work[start:end]
+                if seg.size == 0:
+                    probs.append(np.nan)
+                else:
+                    probs.append(float(np.mean(seg == 1)))
+                t = end
+            else:
+                t += 1
+        results.append((subj_id, probs))
+    
+    return results
+
+
+def compute_task_relevant_choice_rate_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]]
 ) -> pd.DataFrame:
     """
-    各被験者のターゲット選択確率（chosen_item==1）を算出する。
-    chosen_item は 0/1 のみを対象にする。
+    各被験者のtask-relevant選択確率（chosen_item==1 or 0）を算出する。
+    chosen_item は 0/1/-1 のみを対象にする。
     """
     rows = []
-    for subj_id, df in all_df_awareness:
+    for subj_id, df in concat_list:
         if "chosen_item" not in df.columns:
             raise ValueError("DataFrame lacks 'chosen_item' column.")
-        valid = df[df["chosen_item"].isin([0, 1])]
+        df = df.dropna(subset=["rt"]).copy()
+        valid = df[df["chosen_item"].isin([0, 1, -1])]
+        mapped = valid["chosen_item"].replace({-1: 0, 0: 1, 1: 1})
         if valid.empty:
             rate = np.nan
         else:
-            rate = float((valid["chosen_item"] == 1).mean())
-        rows.append({"subject": subj_id, "target_choice_rate": rate})
+            rate = float(mapped.mean())
+        rows.append({"subject": subj_id, "task_relevant_choice_rate": rate, "task_relevant_choice_count": sum(mapped==0)})
 
     result_df = pd.DataFrame(rows)
-    # for _, row in result_df.iterrows():
-        # print(f"{row['subject']}: {row['target_choice_rate']}")
     return result_df
 
 
