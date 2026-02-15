@@ -248,7 +248,7 @@ def plot_rt_histogram_all_subjects(
     plt.show()
 
 
-def plot_MW_vs_reward_across_subjects(
+def plot_MW_vs_target_choice_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     save_path: str = None,
     ooz_index: str = "task_irrelevant_based",
