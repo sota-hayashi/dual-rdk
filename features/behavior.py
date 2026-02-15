@@ -304,6 +304,7 @@ def compute_task_relevant_choice_rate_subjects(
     """
     各被験者のtask-relevant選択確率（chosen_item==1 or 0）を算出する。
     chosen_item は 0/1/-1 のみを対象にする。
+    また、task-irrelevant選択(0)が連続する期間の長さを計算する。
     """
     rows = []
     for subj_id, df in concat_list:
@@ -311,12 +312,36 @@ def compute_task_relevant_choice_rate_subjects(
             raise ValueError("DataFrame lacks 'chosen_item' column.")
         df = df.dropna(subset=["rt"]).copy()
         valid = df[df["chosen_item"].isin([0, 1, -1])]
-        mapped = valid["chosen_item"].replace({-1: 0, 0: 1, 1: 1})
-        if valid.empty:
+        mapped = valid["chosen_item"].replace({-1: 0, 0: 1, 1: 1}).to_numpy()
+
+        if mapped.size == 0:
             rate = np.nan
+            zero_streak_lengths = []
         else:
             rate = float(mapped.mean())
-        rows.append({"subject": subj_id, "task_relevant_choice_rate": rate, "task_relevant_choice_count": sum(mapped==0)})
+            
+            # 連続して0が登場する長さをリスト化
+            zero_streak_lengths = []
+            current_streak = 0
+            for val in mapped:
+                if val == 0:
+                    current_streak += 1
+                else:
+                    if current_streak > 0:
+                        zero_streak_lengths.append(current_streak)
+                    current_streak = 0
+            if current_streak > 0:
+                zero_streak_lengths.append(current_streak)
+
+        rows.append({
+            "subject": subj_id, 
+            "task_relevant_choice_rate": rate, 
+            "task_irrelevant_choice_count": sum(mapped==0),
+            "zero_streak_lengths": zero_streak_lengths,
+            # "zero_streak_count": len(zero_streak_lengths),
+            # "zero_streak_max": max(zero_streak_lengths) if zero_streak_lengths else 0,
+            # "zero_streak_mean": np.mean(zero_streak_lengths) if zero_streak_lengths else 0,
+        })
 
     result_df = pd.DataFrame(rows)
     return result_df
