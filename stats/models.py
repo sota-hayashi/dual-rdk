@@ -131,16 +131,16 @@ def fit_hmm_per_subject(
 
     for init_id in range(n_init):
         A = np.array([[0.7, 0.3], [0.3, 0.7]], dtype=float)
-        B = np.array([[0.5, 0.5], [0.5, 0.5]], dtype=float)
+        B = np.array([[0.13, 0.87], [0.02, 0.98]], dtype=float)
         pi = np.array([0.5, 0.5], dtype=float)
 
-        A = A + rng.normal(0, 0.02, size=A.shape)
-        B = B + rng.normal(0, 0.02, size=B.shape)
+        A = A + rng.normal(0, 1e-3, size=A.shape)
+        B = B + rng.normal(0, 1e-3, size=B.shape)
         A = np.clip(A, 1e-6, None)
         B = np.clip(B, 1e-6, None)
         A = A / A.sum(axis=1, keepdims=True)
         B = B / B.sum(axis=1, keepdims=True)
-        pi = np.clip(pi + rng.normal(0, 0.02, size=pi.shape), 1e-6, None)
+        pi = np.clip(pi + rng.normal(0, 1e-3, size=pi.shape), 1e-6, None)
         pi = pi / pi.sum()
 
         prev_ll = -np.inf
