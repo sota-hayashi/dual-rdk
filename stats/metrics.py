@@ -252,11 +252,12 @@ def t_test_count_target_choice_between_periods(
         equal_var=False
     )
     results = {
-        "t_stat": t_stat,
-        "p_value": p_value,
+        "n": len(concat_list),
+        "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
         "mean_total": df["chosen_item"].mean(),
-        "mean_first_half": first_half_choices.mean(),
-        "mean_second_half": second_half_choices.mean()
+        "mean_first_half": round(first_half_choices.mean(), 3),
+        "mean_second_half": round(second_half_choices.mean(), 3)
     }
     return results
 
@@ -284,10 +285,10 @@ def t_test_reward_points_between_periods(
         equal_var=False
     )
     results = {
-            "t_stat": t_stat,
-            "p_value": p_value,
-            "mean_first_half": first_half_points.mean(),
-            "mean_second_half": second_half_points.mean()
+            "t_stat": round(t_stat, 2),
+            "p_value": f"{p_value:.6f}",
+            "mean_first_half": round(first_half_points.mean(), 3),
+            "mean_second_half": round(second_half_points.mean(), 3)
         }
     return results
 
@@ -331,10 +332,10 @@ def t_test_count_target_choice_between_subjects(
         equal_var=False
     )
     results = {
-        "t_stat": t_stat,
-        "p_value": p_value,
-        "mean_delta_group1": float(group1_delta.mean()),
-        "mean_delta_group2": float(group2_delta.mean()),
+        "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_delta_group1": round(float(group1_delta.mean()), 3),
+        "mean_delta_group2": round(float(group2_delta.mean()), 3),
         "n_group1": int(group1_delta.shape[0]),
         "n_group2": int(group2_delta.shape[0])
     }
