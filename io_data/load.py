@@ -92,8 +92,8 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
         else:
             return -1
     
-    df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"], axis=1)
     df["chosen_item"] = df.apply(determine_choice, axis=1)
+    df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"] and row["chosen_item"] == -1, axis=1)
     return df
 
 def exclude_trials(
@@ -106,10 +106,10 @@ def exclude_trials(
     df = df.copy()
     if "rt" not in df.columns:
         raise ValueError("DataFrame lacks 'rt' column.")
-    df.loc[df["rt"] > rt_threshold, "rt"] = np.nan
     if "bad_response" not in df.columns:
         raise ValueError("DataFrame lacks 'bad_response' column.")
     df.loc[df["bad_response"] == True, "rt"] = np.nan
+    # df.loc[df["rt"] > rt_threshold, "rt"] = np.nan
     return df
 
 def load_and_prepare(path: Path) -> pd.DataFrame:
@@ -236,6 +236,9 @@ def load_all_concatenated(
             "677d283c3ac4eacdfc7a59b4", # b=39, w=1
             "611ce44efa3822c780ae383e", # b=35, w=2
             "615ab5adc70f6edcacba5860", # b=9, w=32 # この被験者においては78%の偏りを示している
+
+            "67800b133eced63d8ec0cde8", # task-irrelevantな試行が16試行
+            "697cc09a8dd7b2c8061ff4e5", # task-irrelevantな試行が18試行
 
 
 
