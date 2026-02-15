@@ -282,9 +282,12 @@ def plot_MW_vs_target_choice_across_subjects(
                 pass
             else:
                 valid = valid[valid["num_trial"] > n_trial - 1]
-            # mapped = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+            # valid["chosen_item"] = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
             valid = valid[valid["chosen_item"].isin([0, 1])]
-            mean_target = valid.loc[valid["num_trial"] >= n_trial//2,"chosen_item"].mean() - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
+            mean_target = (
+                valid.loc[valid["num_trial"] >= n_trial//2,"chosen_item"].mean() 
+                - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
+            )
             rows.append({
                 "subject": subj_id,
                 "out_of_zone_ratio": out_ratio,
