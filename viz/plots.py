@@ -10,7 +10,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from io_data.utils import combine_subjects
-from features.lapses import compute_out_of_zone_ratio_by_rt, compute_out_of_zone_ratio_by_AE, compute_out_of_zone_ratio_of_mean_AE
+from features.lapses import (
+    compute_out_of_zone_ratio_by_rt, 
+    compute_out_of_zone_ratio_by_AE, 
+    compute_out_of_zone_ratio_of_mean_AE,
+    compute_out_of_zone_ratio_by_task_irrelevant_rate,
+)
 from features.behavior import summarize_chosen_item_errors
 from io_data.load import load_hmm_summary
 from common.config import TRIALS_PER_SESSION
@@ -246,7 +251,7 @@ def plot_rt_histogram_all_subjects(
 def plot_MW_vs_reward_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     save_path: str = None,
-    ooz_index: str = "ae_mean_based",
+    ooz_index: str = "task_irrelevant_based",
     n_trial: int = TRIALS_PER_SESSION,
     ooz_fn: Callable[[pd.DataFrame, float, float], float] = None
 ) -> pd.DataFrame:
@@ -260,6 +265,8 @@ def plot_MW_vs_reward_across_subjects(
         "ae_based": compute_out_of_zone_ratio_by_AE,
         "ae_mean_based": compute_out_of_zone_ratio_of_mean_AE,
         "rt_based": compute_out_of_zone_ratio_by_rt,
+        "task_irrelevant_based": compute_out_of_zone_ratio_by_task_irrelevant_rate,
+
     }
     func = ooz_fn or ooz_methods.get(ooz_index)
     if func is None:
@@ -269,18 +276,19 @@ def plot_MW_vs_reward_across_subjects(
     for subj_id, df in concat_list:
         try:
             out_ratio = func(df, n_trial=n_trial)
-            valid = df.dropna(subset=["reward_points"])
+            valid = df.dropna(subset=["rt", "num_trial", "chosen_item"])
             # 分割する試行数を指定することで任意の期間の平均報酬を計算できるようにする
             if n_trial == TRIALS_PER_SESSION:
                 pass
             else:
                 valid = valid[valid["num_trial"] > n_trial - 1]
+            # mapped = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
             valid = valid[valid["chosen_item"].isin([0, 1])]
-            mean_reward = valid["reward_points"].mean() if not valid.empty else np.nan
+            mean_target = valid.loc[valid["num_trial"] >= n_trial//2,"chosen_item"].mean() - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
             rows.append({
                 "subject": subj_id,
                 "out_of_zone_ratio": out_ratio,
-                "mean_reward": mean_reward
+                "mean_target": mean_target
             })
         except Exception as e:
             print(f"Skipping {subj_id}: {e}")
@@ -293,17 +301,17 @@ def plot_MW_vs_reward_across_subjects(
         return result_df
 
     X = sm.add_constant(result_df["out_of_zone_ratio"])
-    fit = sm.OLS(result_df["mean_reward"], X).fit()
+    fit = sm.OLS(result_df["mean_target"], X).fit()
     slope = fit.params["out_of_zone_ratio"]
     pval = fit.pvalues["out_of_zone_ratio"]
 
-    # rho, pval = spearmanr(result_df["out_of_zone_ratio"], result_df["mean_reward"])
+    # rho, pval = spearmanr(result_df["out_of_zone_ratio"], result_df["mean_target"])
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.regplot(
         x="out_of_zone_ratio",
-        y="mean_reward",
+        y="mean_target",
         data=result_df,
         ax=ax,
         scatter_kws={"alpha": 0.5},
@@ -312,8 +320,8 @@ def plot_MW_vs_reward_across_subjects(
     )
 
     ax.set_xlabel("Out of the Zone Ratio", fontsize=12)
-    ax.set_ylabel("Mean Reward Points", fontsize=12)
-    ax.set_title("Mind Wandering vs Reward (Across Subjects)", fontsize=14)
+    ax.set_ylabel("Mean Target Choice Rate", fontsize=12)
+    ax.set_title("Mind Wandering vs Target Choice (Across Subjects)", fontsize=14)
 
     sig_marker = "*" if pval < 0.05 else ""
     ax.text(
@@ -552,13 +560,13 @@ def plot_frac_exploit_vs_valid_choice_rate(
         valid1 = valid[:23]
         valid2 = valid[23:]
         print(valid.size)
-        return float(np.mean(valid1))
+        return float(np.mean(valid))
     if subjects_include is not None:
         print(f"Filtering subjects: {subjects_include}")
         df = df[df["subject"].isin(subjects_include)].copy()
     plot_df = df[["subject", "frac_exploit", "observations", "states"]].copy()
     # plot_df["frac_explore"] = 1.0 - plot_df["frac_exploit"]
-    plot_df["frac_explore"] = 1 - plot_df["states"].apply(lambda s: np.mean(np.array(s[:23]) == 1))
+    plot_df["frac_explore"] = 1 - plot_df["states"].apply(lambda s: np.mean(np.array(s) == 1))
     plot_df["valid_choice_rate"] = plot_df["observations"].apply(valid_choice_rate)
 
     if len(plot_df) < 3:
@@ -593,4 +601,62 @@ def plot_frac_exploit_vs_valid_choice_rate(
         fontsize=11,
         bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
     )
+    plt.show()
+
+
+def plot_hist_with_lognormal_fit(
+    values: List[float],
+    bin_size: float,
+    title: str = "Histogram with Gaussian Fit",
+    xlabel: str = "Value",
+    ylabel: str = "Density"
+):
+    """
+    指定したデータとビン幅でヒストグラムを描画し、ガウス分布をフィットして重ねる。
+    さらに第1四分位〜第3四分位の範囲をガウス分布の面積として薄く表示する。
+    """
+    arr = np.array(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        print("No valid data for histogram.")
+        return
+
+    if bin_size <= 0:
+        raise ValueError("bin_size must be positive.")
+
+    mu = float(arr.mean())
+    log_ae = np.log(arr)
+    mu = log_ae.mean()
+    sigma = log_ae.std(ddof=1)
+    if sigma == 0.0:
+        print("Standard deviation is zero; Gaussian fit is not informative.")
+
+    min_val = arr.min()
+    max_val = arr.max()
+    bins = np.arange(min_val, max_val + bin_size, bin_size)
+
+    q1, q3 = np.percentile(arr, [25, 75])
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.hist(arr, bins=bins, color="#4C72B0", alpha=0.8, edgecolor="white", density=True)
+
+    x = np.linspace(min_val, max_val, 400)
+    if sigma > 0:
+        pdf = (1 / (x * sigma * np.sqrt(2 * np.pi))) * np.exp(-((np.log(x) - mu) ** 2) / (2 * sigma ** 2))
+        ax.plot(x, pdf, color="red", linewidth=2, label="Log-normal fit")
+        mask = (x >= q1) & (x <= q3)
+        ax.fill_between(x[mask], 0, pdf[mask], color="red", alpha=0.15, label="IQR area")
+
+    text_str = f"Q1 (25%): {q1:.2f}\nQ3 (75%): {q3:.2f}"
+    ax.text(0.50, 0.95, text_str,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment='top',
+            horizontalalignment='center',
+            bbox=dict(boxstyle='round,pad=0.5', fc='white', alpha=0.7))
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.legend(loc="upper right", fontsize=10)
     plt.show()
