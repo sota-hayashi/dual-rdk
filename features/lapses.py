@@ -79,6 +79,37 @@ def compute_out_of_zone_ratio_by_rt(df: pd.DataFrame, n_trial: int = TRIALS_PER_
 
     return n_out_of_zone / n_total if n_total > 0 else np.nan
 
+def compute_out_of_zone_ratio_by_task_irrelevant_rate(
+    df: pd.DataFrame,
+    n_trial: int = TRIALS_PER_SESSION
+) -> float:
+    """
+    各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
+
+    out of the zone の定義:
+      タスク無関係選択率が高い試行を out of the zone とみなす。
+      例えば、タスク無関係選択率が0.8以上の被験者を out of the zone とみなす。
+    """
+    needed = ["chosen_item", "num_trial", "rt"]
+    if not set(needed).issubset(df.columns):
+        raise ValueError(f"DataFrame lacks required columns: {needed}")
+
+    valid = df.dropna(subset=needed).copy()
+    if valid.empty:
+        return np.nan
+
+    # 今は前後半で分けてMW vs rewardを見ている
+    # n_out_of_zone = ((valid["task_irrelevant_choice_count"] >= 0.8) & (valid["num_trial"] <= n_trial - 1)).sum()
+    n_out_of_zone_first = (valid.loc[valid["num_trial"] < n_trial // 2, "chosen_item"] == -1).sum()
+    n_total_first = len(valid.loc[valid["num_trial"] < n_trial // 2])
+
+    n_out_of_zone_second = (valid.loc[valid["num_trial"] >= n_trial // 2, "chosen_item"] == -1).sum()
+    n_total_second = len(valid.loc[valid["num_trial"] >= n_trial // 2])
+
+    n_out_of_zone = n_out_of_zone_second / n_total_second - n_out_of_zone_first / n_total_first if n_total_second > 0 and n_total_first > 0 else np.nan
+
+    return n_out_of_zone
+
 
 def label_if_ooz(
     concat_list: List[Tuple[str, pd.DataFrame]]
