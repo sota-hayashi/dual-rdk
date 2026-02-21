@@ -241,6 +241,13 @@ def load_all_concatenated(
             "697cc09a8dd7b2c8061ff4e5", # task-irrelevantな試行が18試行
 
 
+            "673f4f8fa5b4a47492e30aea", # RTの標準偏差が極端に大きい（std=20000ms）
+            "666408427db5e38fe0ea1736", # RTの標準偏差が極端に大きい（std=17000ms）
+            "65fb13bebfa339f73b4cf76a", # RTの標準偏差が極端に大きい（std=38000ms）
+            "5d617ba9364f9a0019f1dac3", # RTの標準偏差が極端に大きい（std=5900ms）
+            "682b23f345fc428cc9586a06", # RTの標準偏差が極端に大きい（std=5800ms）
+
+
 
 
         ]:
