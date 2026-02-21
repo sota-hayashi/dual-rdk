@@ -663,3 +663,44 @@ def plot_hist_with_lognormal_fit(
     ax.set_ylabel(ylabel, fontsize=12)
     ax.legend(loc="upper right", fontsize=10)
     plt.show()
+
+def plot_exp_obj_with_linear_fit(
+    values: List[Tuple[float, float]],
+    title: str = "Plot of Explanatory variable and Objective variable with Linear Fit",
+    xlabel: str = "Explanatory variable",
+    ylabel: str = "Objective variable"
+):
+    """
+    指定したデータで散布図を描画し、線形回帰をフィットして重ねる。
+    """
+    if not values:
+        print("No data for plotting.")
+        return
+
+    x = np.array([v[0] for v in values], dtype=float)
+    y = np.array([v[1] for v in values], dtype=float)
+
+    X = sm.add_constant(x)
+    model = sm.OLS(y, X)
+    fit = model.fit(disp=False)
+    slope = fit.params[1] if len(fit.params) > 1 else np.nan
+    pval = fit.pvalues[1] if len(fit.pvalues) > 1 else np.nan
+    print(f"Linear fit results: slope={slope:.4f}, p-value={pval:.4f}")
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.regplot(x=x, y=y, ax=ax, scatter_kws={"alpha": 0.5}, line_kws={"color": "red"}, ci=95)
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+
+    sig_marker = "*" if pval < 0.05 else ""
+    ax.text(
+        0.05, 0.95,
+        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(values)}",
+        transform=ax.transAxes,
+        va="top",
+        fontsize=11,
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+    )
+    plt.show()
