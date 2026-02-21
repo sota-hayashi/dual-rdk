@@ -78,27 +78,58 @@ def calculate_rt_deviance_mean(
         updated.append((subj_id, work))
     return updated
 
-def compute_AE_variance(
+def compute_RT_standard_deviance(
     concat_list: List[Tuple[str, pd.DataFrame]],
 ) -> List[Tuple[str, float]]:
     """
-    各被験者のAEの分散を計算する。
-    chosen_item=1 -> angular_error_target
-    chosen_item=0 -> angular_error_distractor
+    各被験者のRTの標準偏差を計算する。
     """
     results = []
     for subj_id, df in concat_list:
         df = df.dropna(subset=["rt"])
-        work = df.copy()
-        work = work[work["chosen_item"].isin([0, 1])].copy()
-        work["error_value"] = np.where(
-            work["chosen_item"] == 1,
-            work["angular_error_target"],
-            work["angular_error_distractor"],
+        rt = pd.to_numeric(df["rt"], errors="coerce")
+        std = rt.std(ddof=1)
+        results.append((subj_id, std))
+    return pd.DataFrame(results, columns=["subject", "rt_variance"])
+
+def compute_AE_standard_deviance(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, float]]:
+    """
+    各被験者のAEの標準偏差を計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        df["error_value"] = np.where(
+            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
+            df["angular_error_target"].abs(),
+            df["angular_error_distractor"].abs(),
         )
-        var = work["error_value"].var(ddof=1)
-        results.append((subj_id, var))
-    return results
+        std = df["error_value"].std(ddof=1)
+        results.append((subj_id, std))
+    return pd.DataFrame(results, columns=["subject", "ae_variance"])
+
+def compute_slope_of_ae_over_trials_all(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    各被験者のAEの絶対値が試行ごとに減少しているかを回帰で検定する。
+    Returns: DataFrame(subject, slope, p_value)
+    """
+    rows = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        df["error_value"] = df["angular_error_distractor"].abs() - df["angular_error_target"].abs()
+        if len(df) < 3:
+            rows.append({"subject": subj_id, "slope": np.nan, "p_value": np.nan, "n": len(df), "note": "not enough trials"})
+            continue
+        X = sm.add_constant(df["num_trial"])
+        fit = sm.OLS(df["error_value"], X).fit()
+        slope = fit.params.get("num_trial", np.nan)
+        pval = fit.pvalues.get("num_trial", np.nan)
+        rows.append({"subject": subj_id, "slope": slope, "p_value": pval, "n": len(df), "note": ""})
+    return pd.DataFrame(rows)
 
 def compute_target_choice_rate_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
@@ -112,12 +143,15 @@ def compute_target_choice_rate_subjects(
         if "chosen_item" not in df.columns:
             raise ValueError("DataFrame lacks 'chosen_item' column.")
         df = df.dropna(subset=["rt"]).copy()
+        # df["chosen_item"] = df["chosen_item"].replace({-1: 0})
         valid = df[df["chosen_item"].isin([0, 1])]
         if valid.empty:
-            rate = np.nan
+            mean_rate = np.nan
         else:
-            rate = float((valid["chosen_item"] == 1).mean())
-        rows.append({"subject": subj_id, "target_choice_rate": rate})
+            mean_rate = float((valid["chosen_item"] == 1).mean())
+            rate_diff = valid.loc[valid["num_trial"] >= 24, "chosen_item"].mean() - valid.loc[valid["num_trial"] < 24, "chosen_item"].mean()
+
+        rows.append({"subject": subj_id, "target_choice_rate": mean_rate, "target_choice_rate_diff": rate_diff})
 
     result_df = pd.DataFrame(rows)
     return result_df
@@ -313,6 +347,7 @@ def compute_task_relevant_choice_rate_subjects(
         df = df.dropna(subset=["rt"]).copy()
         valid = df[df["chosen_item"].isin([0, 1, -1])]
         mapped = valid["chosen_item"].replace({-1: 0, 0: 1, 1: 1}).to_numpy()
+        first_second_task_irrelevant_count = [len(mapped[:24]) - mapped[:24].sum(), len(mapped[24:]) - mapped[24:].sum()]
 
         if mapped.size == 0:
             rate = np.nan
@@ -338,6 +373,8 @@ def compute_task_relevant_choice_rate_subjects(
             "task_relevant_choice_rate": rate, 
             "task_irrelevant_choice_count": sum(mapped==0),
             "zero_streak_lengths": zero_streak_lengths,
+            "first_second_task_irrelevant_count": first_second_task_irrelevant_count,
+            "valid_trial_count": len(valid),
             # "zero_streak_count": len(zero_streak_lengths),
             # "zero_streak_max": max(zero_streak_lengths) if zero_streak_lengths else 0,
             # "zero_streak_mean": np.mean(zero_streak_lengths) if zero_streak_lengths else 0,
