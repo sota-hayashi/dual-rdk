@@ -2,7 +2,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp
+from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp, shapiro, mannwhitneyu
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
@@ -239,6 +239,8 @@ def t_test_count_target_choice_between_periods(
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
     df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df.copy()
+    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
     first_half_choices = df.loc[df["num_trial"] <= n_trial - 1, "chosen_item"]
@@ -305,6 +307,8 @@ def t_test_count_target_choice_between_subjects(
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
     df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df.copy()
+    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
     first_mask = df["num_trial"] <= n_trial - 1
@@ -333,6 +337,99 @@ def t_test_count_target_choice_between_subjects(
     )
     results = {
         "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_delta_group1": round(float(group1_delta.mean()), 3),
+        "mean_delta_group2": round(float(group2_delta.mean()), 3),
+        "n_group1": int(group1_delta.shape[0]),
+        "n_group2": int(group2_delta.shape[0])
+    }
+    return results
+
+def test_shapiro_wilk(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    シャピロ・ウィルク検定を実行して、データが正規分布に従うかどうかを評価する。
+    サンプルサイズが小さい場合に特に有効。
+
+    Args:
+        data: 検定対象のデータ（リスト形式）。
+
+    Returns:
+        (W統計量, p値) のタプル。
+        p値が有意水準（例: 0.05）より大きい場合、「データは正規分布に従う」という帰無仮説を棄却できない。
+    """    
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df.copy()
+    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+    if df.empty:
+        return {"w_stat": np.nan, "p_value": np.nan}
+    first_mask = df["num_trial"] <= n_trial - 1
+    second_mask = df["num_trial"] >= n_trial
+
+    per_subject = (
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+          .dropna(subset=["half"])
+          .groupby(["subject", "half"], as_index=False)["chosen_item"]
+          .mean()
+          .pivot(index="subject", columns="half", values="chosen_item")
+    )
+    per_subject = per_subject.dropna(subset=["first", "second"]).copy()
+    per_subject["delta"] = per_subject["second"] - per_subject["first"]
+    per_subject["sum"] = (per_subject["second"] + per_subject["first"]) / 2
+
+    if per_subject["delta"].isna().sum() > 0:
+        return {"w_stat": np.nan, "p_value": np.nan}
+
+    w_stat, p_value = shapiro(per_subject["delta"].values)
+    results = {
+        "w_stat": round(w_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_delta": round(float(per_subject["delta"].mean()), 3),
+        "n": int(per_subject["delta"].shape[0])
+    }
+    return results
+
+def Mann_Whitney_U_test_count_target_choice_between_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    first_group: List[str],
+    second_group: List[str],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    参加者ごとのターゲット選択確率の前半→後半の変化量を算出し、
+    その変化量の群間差をMann-Whitney U検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+    df = df[df["chosen_item"].isin([0, 1])].copy()
+    if df.empty:
+        return {"u_stat": np.nan, "p_value": np.nan}
+    first_mask = df["num_trial"] <= n_trial - 1
+    second_mask = df["num_trial"] >= n_trial
+
+    per_subject = (
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+          .dropna(subset=["half"])
+          .groupby(["subject", "half"], as_index=False)["chosen_item"]
+          .mean()
+          .pivot(index="subject", columns="half", values="chosen_item")
+    )
+    per_subject = per_subject.dropna(subset=["first", "second"]).copy()
+    per_subject["delta"] = per_subject["second"] - per_subject["first"]
+
+    group1_delta = per_subject.loc[per_subject.index.isin(first_group), "delta"]
+    group2_delta = per_subject.loc[per_subject.index.isin(second_group), "delta"]
+
+    if group1_delta.empty or group2_delta.empty:
+        return {"u_stat": np.nan, "p_value": np.nan}
+
+    u_stat, p_value = mannwhitneyu(group1_delta, group2_delta, alternative='two-sided')
+    results = {
+        "u_stat": round(u_stat, 2),
         "p_value": f"{p_value:.6f}",
         "mean_delta_group1": round(float(group1_delta.mean()), 3),
         "mean_delta_group2": round(float(group2_delta.mean()), 3),
