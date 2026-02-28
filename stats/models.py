@@ -131,17 +131,17 @@ def fit_hmm_per_subject(
 
     for init_id in range(n_init):
         A = np.array([[0.7, 0.3], [0.3, 0.7]], dtype=float)
-        B = np.array([[0.13, 0.87], [0.02, 0.98]], dtype=float)
+        B = np.array([[0.04, 0.96], [0.01, 0.99]], dtype=float)
         pi = np.array([0.5, 0.5], dtype=float)
 
-        A = A + rng.normal(0, 1e-3, size=A.shape)
-        B = B + rng.normal(0, 1e-3, size=B.shape)
-        A = np.clip(A, 1e-6, None)
-        B = np.clip(B, 1e-6, None)
-        A = A / A.sum(axis=1, keepdims=True)
-        B = B / B.sum(axis=1, keepdims=True)
-        pi = np.clip(pi + rng.normal(0, 1e-3, size=pi.shape), 1e-6, None)
-        pi = pi / pi.sum()
+        # A = A + rng.normal(0, 1e-3, size=A.shape)
+        # B = B + rng.normal(0, 1e-3, size=B.shape)
+        # A = np.clip(A, 1e-6, None)
+        # B = np.clip(B, 1e-6, None)
+        # A = A / A.sum(axis=1, keepdims=True)
+        # B = B / B.sum(axis=1, keepdims=True)
+        # pi = np.clip(pi + rng.normal(0, 1e-3, size=pi.shape), 1e-6, None)
+        # pi = pi / pi.sum()
 
         prev_ll = -np.inf
         for _ in range(n_iter):
@@ -153,13 +153,14 @@ def fit_hmm_per_subject(
             A = xi.sum(axis=0)
             A = A / A.sum(axis=1, keepdims=True)
 
-            B = np.zeros_like(B)
-            for c in range(B.shape[1]):
-                mask = (y == c)
-                if mask.any():
-                    B[:, c] = gamma[mask].sum(axis=0)
-            eps = 1e-4
-            B = (B + eps) / (B + eps).sum(axis=1, keepdims=True)
+            # B = np.zeros_like(B)
+            # for c in range(B.shape[1]):
+            #     mask = (y == c)
+            #     if mask.any():
+            #         B[:, c] = gamma[mask].sum(axis=0)
+            # # eps = 1e-4
+            # # B = (B + eps) / (B + eps).sum(axis=1, keepdims=True)
+            # B = B / B.sum(axis=1, keepdims=True)
 
             ll = fb["loglik"]
             if np.abs(ll - prev_ll) < tol:
