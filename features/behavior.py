@@ -8,6 +8,8 @@ import statsmodels.api as sm
 from io_data.utils import combine_subjects
 from stats.metrics import permutation_sign_test, cmh_test_2x2
 
+from functools import reduce
+
 
 def summarize_chosen_item_errors(concat_list: List[Tuple[str, pd.DataFrame]]) -> pd.DataFrame:
     """
@@ -88,9 +90,10 @@ def compute_RT_standard_deviance(
     for subj_id, df in concat_list:
         df = df.dropna(subset=["rt"])
         rt = pd.to_numeric(df["rt"], errors="coerce")
+        rt = rt[24:]
         std = rt.std(ddof=1)
         results.append((subj_id, std))
-    return pd.DataFrame(results, columns=["subject", "rt_variance"])
+    return pd.DataFrame(results, columns=["subject", "rt_std"])
 
 def compute_AE_standard_deviance(
     concat_list: List[Tuple[str, pd.DataFrame]],
@@ -101,14 +104,15 @@ def compute_AE_standard_deviance(
     results = []
     for subj_id, df in concat_list:
         df = df.dropna(subset=["rt"])
-        df["error_value"] = np.where(
-            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
-            df["angular_error_target"].abs(),
-            df["angular_error_distractor"].abs(),
-        )
+        # df["error_value"] = np.where(
+        #     df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
+        #     df["angular_error_target"].abs(),
+        #     df["angular_error_distractor"].abs(),
+        # )
+        df["error_value"] = df["angular_error_target"].abs()
         std = df["error_value"].std(ddof=1)
         results.append((subj_id, std))
-    return pd.DataFrame(results, columns=["subject", "ae_variance"])
+    return pd.DataFrame(results, columns=["subject", "ae_std"])
 
 def compute_slope_of_ae_over_trials_all(
     concat_list: List[Tuple[str, pd.DataFrame]],
@@ -130,6 +134,44 @@ def compute_slope_of_ae_over_trials_all(
         pval = fit.pvalues.get("num_trial", np.nan)
         rows.append({"subject": subj_id, "slope": slope, "p_value": pval, "n": len(df), "note": ""})
     return pd.DataFrame(rows)
+
+def compute_mean_angular_error_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    各被験者のターゲット選択時の角度誤差の平均を計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        target_error = df["angular_error_target"].abs()
+        distractor_error = df["angular_error_distractor"].abs()
+        angular_error = np.where(target_error < distractor_error, target_error, distractor_error)
+        mean_target_error = target_error.mean()
+        mean_distractor_error = distractor_error.mean()
+        mean_angular_error = angular_error.mean()
+        results.append((subj_id, mean_target_error, mean_distractor_error, mean_angular_error))
+    return pd.DataFrame(results, columns=["subject", "mean_target_angular_error", "mean_distractor_angular_error", "mean_angular_error"])
+
+
+def cancatenate_necessary_behavioral_df(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, pd.DataFrame]]:
+    """
+    各被験者の必要な行動データを結合する。
+    """
+    df_merged = []
+    task_relevant_choice_df = compute_task_relevant_choice_rate_subjects(concat_list)
+    target_choice_df = compute_target_choice_rate_subjects(concat_list)
+    rt_variances = compute_RT_standard_deviance(concat_list)
+    ae_variances = compute_AE_standard_deviance(concat_list)
+    slope_df = compute_slope_of_ae_over_trials_all(concat_list)
+    mean_angular_error_df = compute_mean_angular_error_subjects(concat_list)
+
+    data_frames = [task_relevant_choice_df, target_choice_df, rt_variances, ae_variances, slope_df, mean_angular_error_df]
+    df_merged = reduce(lambda left, right: pd.merge(left, right, on='subject', how='inner'), data_frames)
+
+    return df_merged
 
 def compute_target_choice_rate_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
@@ -297,37 +339,46 @@ def compute_target_choice_prob_by_task_irrelevant_switch(
             raise ValueError("DataFrame lacks required columns: chosen_item, rt")
 
         work = df.dropna(subset=["chosen_item", "rt"]).copy()
-        work = work["chosen_item"].to_numpy()
+        rt = work["rt"].to_numpy()
+        choice = work["chosen_item"].to_numpy()
         print(f"Processing subject {subj_id} with {len(work)} trials")
 
         probs = []
+        rt_std_list = []
         t = 1
         while t < len(work):
-            if work[t - 1] != -1 and work[t] != -1:
+            if choice[t - 1] != -1 and choice[t] != -1:
                 start = t - 1
                 end = t
-                while end < len(work) and work[end] != -1:
+                while end < len(work) and choice[end] != -1:
                     end += 1
-                seg = work[start:end]
+                seg = choice[start:end]
+                rt_seg = rt[start:end]
                 if seg.size == 0:
                     probs.append(np.nan)
+                    rt_std_list.append(np.nan)
                 else:
                     probs.append(float(np.mean(seg == 1)))
+                    rt_std_list.append(float(rt_seg.std(ddof=1)))
                 t = end
-            elif work[t - 1] == -1 and work[t] != -1:
+            elif choice[t - 1] == -1 and choice[t] != -1:
                 start = t
                 end = t + 1
-                while end < len(work) and work[end] == -1:
+                while end < len(work) and choice[end] != -1:
                     end += 1
-                seg = work[start:end]
+                seg = choice[start:end]
+                rt_seg = rt[start:end]
                 if seg.size == 0:
                     probs.append(np.nan)
+                    rt_std_list.append(np.nan)
                 else:
                     probs.append(float(np.mean(seg == 1)))
+                    rt_std_list.append(float(rt_seg.std(ddof=1)))
                 t = end
             else:
                 t += 1
-        results.append((subj_id, probs))
+            clean_rt_std_list = pd.Series(rt_std_list).dropna().tolist()
+        results.append((subj_id, clean_rt_std_list))
     
     return results
 
@@ -372,8 +423,8 @@ def compute_task_relevant_choice_rate_subjects(
             "subject": subj_id, 
             "task_relevant_choice_rate": rate, 
             "task_irrelevant_choice_count": sum(mapped==0),
-            "zero_streak_lengths": zero_streak_lengths,
-            "first_second_task_irrelevant_count": first_second_task_irrelevant_count,
+            # "zero_streak_lengths": zero_streak_lengths,
+            # "first_second_task_irrelevant_count": first_second_task_irrelevant_count,
             "valid_trial_count": len(valid),
             # "zero_streak_count": len(zero_streak_lengths),
             # "zero_streak_max": max(zero_streak_lengths) if zero_streak_lengths else 0,
