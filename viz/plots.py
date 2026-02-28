@@ -15,11 +15,88 @@ from features.lapses import (
     compute_out_of_zone_ratio_by_AE, 
     compute_out_of_zone_ratio_of_mean_AE,
     compute_out_of_zone_ratio_by_task_irrelevant_rate,
+    compute_out_of_the_zone_ratio_by_rt_moving,
+    label_if_ooz,
 )
 from features.behavior import summarize_chosen_item_errors
 from io_data.load import load_hmm_summary
 from common.config import TRIALS_PER_SESSION
 
+def plot_frac_ae_target_distractor_by_trial(
+    df: pd.DataFrame,
+    save_path: str = None,
+    window: int = 3
+):
+    """
+    Plot the fraction of AE (Angular Error) for target and distractor items by trial.
+    """
+    sub = df.dropna(subset=["num_trial", "angular_error_target", "angular_error_distractor"]).copy()
+    if sub.empty:
+        print(f"No data for session frac AE plot.")
+        return
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # choose smaller of target/distractor angular error and apply exponential(normalized by 180)
+    sub["frac_ae"] = 1 / np.exp(
+        sub["angular_error_target"].abs() / 180.0
+        # np.where(
+        #     sub["angular_error_target"].abs() < sub["angular_error_distractor"].abs(),
+        #     sub["angular_error_target"].abs() / 180.0,
+        #     sub["angular_error_distractor"].abs() / 180.0,
+        # )
+    )
+
+    if window > 1:
+        plot_values = sub["frac_ae"].rolling(window=window, min_periods=1).mean()
+        label = f'frac_ae (smoothed, window={window})'
+    else:
+        plot_values = sub["frac_ae"]
+        label = 'frac_ae'
+
+    
+    ax.plot(sub["num_trial"], plot_values, label=label)
+
+    ax.set_xlabel("Trial", fontsize=12)
+    ax.set_ylabel("The inverse of exponential of target and distractor angular error", fontsize=12)
+    ax.legend()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
+    plt.show()
+
+def plot_rt_by_trial(
+    df: pd.DataFrame,
+    save_path: str = None,
+    window: int = 3
+):
+    """Plot RT by trial with optional smoothing."""
+    sub = df.dropna(subset=["num_trial", "rt"]).copy()
+    if sub.empty:
+        print(f"No data for session RT plot.")
+        return
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    if window > 1:
+        plot_values = sub["rt"].rolling(window=window, min_periods=1).mean()
+        label = f'RT (smoothed, window={window})'
+    else:
+        plot_values = sub["rt"]
+        label = 'RT'
+
+    ax.plot(sub["num_trial"], plot_values, label=label)
+    ax.set_xlabel("Trial", fontsize=12)
+    ax.set_ylabel("Reaction Time (ms)", fontsize=12)
+    ax.legend()
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
+    plt.show()
 
 def plot_reward_by_trial(
     df: pd.DataFrame,
@@ -251,7 +328,7 @@ def plot_rt_histogram_all_subjects(
 def plot_MW_vs_target_choice_across_subjects(
     concat_list: List[Tuple[str, pd.DataFrame]],
     save_path: str = None,
-    ooz_index: str = "task_irrelevant_based",
+    ooz_index: str = "rt_moving_based",
     n_trial: int = TRIALS_PER_SESSION,
     ooz_fn: Callable[[pd.DataFrame, float, float], float] = None
 ) -> pd.DataFrame:
@@ -266,27 +343,35 @@ def plot_MW_vs_target_choice_across_subjects(
         "ae_mean_based": compute_out_of_zone_ratio_of_mean_AE,
         "rt_based": compute_out_of_zone_ratio_by_rt,
         "task_irrelevant_based": compute_out_of_zone_ratio_by_task_irrelevant_rate,
+        "rt_moving_based": compute_out_of_the_zone_ratio_by_rt_moving,
 
     }
     func = ooz_fn or ooz_methods.get(ooz_index)
     if func is None:
         raise ValueError(f"Unknown ooz_index: {ooz_index}")
+    if ooz_index == "rt_moving_based":
+        concat_list = label_if_ooz(concat_list)
 
     rows = []
     for subj_id, df in concat_list:
         try:
             out_ratio = func(df, n_trial=n_trial)
-            valid = df.dropna(subset=["rt", "num_trial", "chosen_item"])
+            valid = df.dropna(subset=["rt"])
             # 分割する試行数を指定することで任意の期間の平均報酬を計算できるようにする
             if n_trial == TRIALS_PER_SESSION:
                 pass
             else:
                 valid = valid[valid["num_trial"] > n_trial - 1]
             # valid["chosen_item"] = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
-            valid = valid[valid["chosen_item"].isin([0, 1])]
+            # valid = valid[valid["chosen_item"].isin([0, 1])]
             mean_target = (
-                valid.loc[valid["num_trial"] >= n_trial//2,"chosen_item"].mean() 
-                - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
+                # np.where(
+                #     valid["angular_error_target"].abs() < valid["angular_error_distractor"].abs(),
+                #     valid["angular_error_target"].abs(),
+                #     valid["angular_error_distractor"].abs()
+                # ).mean()
+                valid["angular_error_target"].abs().mean()
+                # - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
             )
             rows.append({
                 "subject": subj_id,
@@ -418,51 +503,51 @@ def plot_std_distractor_ae_vs_mean_reward(
 
     return result_df
 
-def plot_rt_by_trial(
-    df: pd.DataFrame,
-    save_path: str = None
-):
-    """
-    For a single DataFrame, plot reaction time (rt) vs trial (num_trial) scatter plot.
-    """
-    sub = df.dropna(subset=["rt", "num_trial"]).copy()
-    if sub.empty:
-        print("No data for RT vs Trial plot.")
-        return
-    X = sm.add_constant(sub["num_trial"])
-    fit = sm.OLS(sub["rt"], X).fit()
-    slope = fit.params.get("num_trial", np.nan)
-    pval = fit.pvalues.get("num_trial", np.nan)
+# def plot_rt_by_trial(
+#     df: pd.DataFrame,
+#     save_path: str = None
+# ):
+#     """
+#     For a single DataFrame, plot reaction time (rt) vs trial (num_trial) scatter plot.
+#     """
+#     sub = df.dropna(subset=["rt", "num_trial"]).copy()
+#     if sub.empty:
+#         print("No data for RT vs Trial plot.")
+#         return
+#     X = sm.add_constant(sub["num_trial"])
+#     fit = sm.OLS(sub["rt"], X).fit()
+#     slope = fit.params.get("num_trial", np.nan)
+#     pval = fit.pvalues.get("num_trial", np.nan)
     
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.regplot(
-        x="num_trial",
-        y="rt",
-        data=sub,
-        ax=ax,
-        scatter_kws={"alpha": 0.5},
-        line_kws={"color": "red"},
-        ci=95
-    )
-    ax.set_title("Reaction Time vs Trial", fontsize=14)
-    ax.set_xlabel("Trial (num_trial)", fontsize=12)
-    ax.set_ylabel("Reaction Time (rt)", fontsize=12)
+#     plt.style.use("seaborn-v0_8-whitegrid")
+#     fig, ax = plt.subplots(figsize=(8, 5))
+#     sns.regplot(
+#         x="num_trial",
+#         y="rt",
+#         data=sub,
+#         ax=ax,
+#         scatter_kws={"alpha": 0.5},
+#         line_kws={"color": "red"},
+#         ci=95
+#     )
+#     ax.set_title("Reaction Time vs Trial", fontsize=14)
+#     ax.set_xlabel("Trial (num_trial)", fontsize=12)
+#     ax.set_ylabel("Reaction Time (rt)", fontsize=12)
 
-    sig_marker = "*" if pval < 0.05 else ""
-    ax.text(
-        0.05, 0.95,
-        f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(sub)}",
-        transform=ax.transAxes,
-        va="top",
-        fontsize=11,
-        bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
-    )
-    if save_path:
-        plt.savefig(save_path, bbox_inches="tight")
-        print(f"Saved plot to {save_path}")
-    plt.show()
-    return
+#     sig_marker = "*" if pval < 0.05 else ""
+#     ax.text(
+#         0.05, 0.95,
+#         f"slope = {slope:.4f}\np = {pval:.4f}{sig_marker}\nn = {len(sub)}",
+#         transform=ax.transAxes,
+#         va="top",
+#         fontsize=11,
+#         bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
+#     )
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches="tight")
+#         print(f"Saved plot to {save_path}")
+#     plt.show()
+#     return
 
 
 def plot_hmm_subject_result(
@@ -533,7 +618,7 @@ def plot_exploit_target_prob_by_switch(
     ax.set_xlabel("Switch count", fontsize=12)
     ax.set_ylabel("Mean target choice probability", fontsize=12)
     ax.set_title("Target choice probability after explore->exploit switches", fontsize=14)
-    ax.set_ylim(0, 1)
+    # ax.set_ylim(0, 1)
     if len(subject_prob_list) <= 10:
         ax.legend(fontsize=9, loc="best")
     plt.show()
@@ -651,7 +736,7 @@ def plot_hist_with_lognormal_fit(
         mask = (x >= q1) & (x <= q3)
         ax.fill_between(x[mask], 0, pdf[mask], color="red", alpha=0.15, label="IQR area")
 
-    text_str = f"Q1 (25%): {q1:.2f}\nQ3 (75%): {q3:.2f}"
+    text_str = f"Q1 (25%): {q1:.2f}\nQ3 (75%): {q3:.2f}\nMean: {arr.mean():.2f}\nStd: {arr.std(ddof=1):.2f}"
     ax.text(0.50, 0.95, text_str,
             transform=ax.transAxes,
             fontsize=10,
