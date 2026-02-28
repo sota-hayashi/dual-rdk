@@ -229,6 +229,37 @@ def t_test_learning_rate_from_switch_probs(
         "n": len(rates_arr),
     }
 
+def t_test_rt_difference_between_target_distractor(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, float]:
+    """
+    ターゲット選択試行とディストラクター選択試行のRT差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    work = combined.dropna(subset=["rt", "chosen_item"]).copy()
+    if work.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    target_rt = work.loc[work["chosen_item"] == 1, "rt"].astype(float)
+    distractor_rt = work.loc[work["chosen_item"] == 0, "rt"].astype(float)
+    if target_rt.empty or distractor_rt.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(target_rt, distractor_rt, equal_var=False)
+    return {
+        "n_target": len(target_rt),
+        "n_distractor": len(distractor_rt),
+        "t_stat": t_stat,
+        "p_value": p_value,
+        "mean_target_rt": float(target_rt.mean()),
+        "mean_distractor_rt": float(distractor_rt.mean()),
+        "mean_diff_rt": float(target_rt.mean() - distractor_rt.mean())
+    }
+
+
 def t_test_count_target_choice_between_periods(
     concat_list: List[Tuple[str, pd.DataFrame]],
     n_trial: int = TRIALS_PER_SESSION // 2
@@ -272,11 +303,11 @@ def t_test_reward_points_between_periods(
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
-    first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "reward_points"]
-    second_half_points = df.loc[df["num_trial"] >= n_trial, "reward_points"]
+    first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "angular_error_target"].abs()
+    second_half_points = df.loc[df["num_trial"] >= n_trial, "angular_error_target"].abs()
 
     if first_half_points.empty or second_half_points.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
@@ -287,10 +318,12 @@ def t_test_reward_points_between_periods(
         equal_var=False
     )
     results = {
-            "t_stat": round(t_stat, 2),
-            "p_value": f"{p_value:.6f}",
-            "mean_first_half": round(first_half_points.mean(), 3),
-            "mean_second_half": round(second_half_points.mean(), 3)
+        "n": len(concat_list),
+        "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_total": df["angular_error_target"].abs().mean(),
+        "mean_first_half": round(first_half_points.mean(), 3),
+        "mean_second_half": round(second_half_points.mean(), 3)
         }
     return results
 
