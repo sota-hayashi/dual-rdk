@@ -67,6 +67,8 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
         base = group_sorted.iloc[0].copy()
         follow = group_sorted.iloc[1]
         base["reward_points"] = follow.get("reward_points")
+        base["target_direction"] = follow.get("target_direction")
+        base["distractor_direction"] = follow.get("distractor_direction")
         base["angular_error_target"] = follow.get("angular_error_target")
         base["angular_error_distractor"] = follow.get("angular_error_distractor")
         base["rt"] = follow.get("rt")
