@@ -23,7 +23,7 @@ def run_hmm(
     n_states: int = 2,
     n_iter: int = 100,
     n_init: int = 30,
-    random_state: int = 42,
+    random_state: int = 4,
 ):
     if train:
         if all_data_learning is None:
@@ -36,11 +36,12 @@ def run_hmm(
             random_state=random_state,
             save_path=summary_path,
         )
-        return hmm_output
+        hmm_normalized_df = relabel_hmm_states(load_hmm_summary(summary_path))
+        hmm_normalized_df.to_csv(summary_path.parent / "hmm_summary_normalized_decisive_prob.csv")
 
     # analysis-only mode
-    subjects, subject_states_list = get_subjects_by_hmm_category(summary_path, categories or [])
+    subjects, subject_states_list = get_subjects_by_hmm_category(summary_path.parent / "hmm_summary_normalized_decisive_prob.csv", categories or [])
     if subject_states_list:
         subject_probs = compute_exploit_target_prob_by_switch(subject_states_list)
-        plot_exploit_target_prob_by_switch(subject_probs)
-    return {"subjects": subjects, "subject_states_list": subject_states_list}
+        # plot_exploit_target_prob_by_switch(subject_probs)
+    return subjects, subject_states_list
