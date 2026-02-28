@@ -110,6 +110,19 @@ def compute_out_of_zone_ratio_by_task_irrelevant_rate(
 
     return n_out_of_zone
 
+def compute_out_of_the_zone_ratio_by_rt_moving(
+    df: pd.DataFrame,
+    n_trial: int = TRIALS_PER_SESSION,
+)-> float:
+    """
+    各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。
+
+    out of the zone の定義:
+    rt < M_mean かつ rt_deviance_mean > T を満たす試行を 1 (out of the zone) とラベル付けする。
+    M_meanはrtの移動平均、rt_deviance_meanはrtと移動平均の乖離の移動平均、Tは全被験者のrt_deviance_meanの中央値などを用いる。
+    """
+    valid = df.dropna(subset=["rt"]).copy()
+    return valid["ooz"].mean() if not valid.empty else np.nan
 
 def label_if_ooz(
     concat_list: List[Tuple[str, pd.DataFrame]]
@@ -119,7 +132,7 @@ def label_if_ooz(
     OOZ(t) = (M_t < M_mean) and (D_t_smooth > T)
     """
     with_moving = calculate_rt_moving_mean(concat_list, window=3)
-    with_deviance = calculate_rt_deviance_mean(with_moving)
+    with_deviance = calculate_rt_deviance_mean(with_moving, window=3)
 
     medians = []
     for _, df in with_deviance:
