@@ -543,8 +543,9 @@
       const baseAngle = Math.floor(range[0] + Math.random() * width);
       return rotateAngle(baseAngle);
     };
-    const sampleRandomDirection = () => Math.floor(Math.random() * 360);
+
     let rdk_conditions = [];
+
     const rdkConditions = () => shuffledBaseConditions.map((condition) => {
       //--- 方向差が90°未満なら再サンプル（最大20回で打ち切り） ---
       let whiteDirection = sampleDirectionFromRange(templateRanges[condition.white_range]);
@@ -565,7 +566,7 @@
         attempts += 1;
       }
 
-      console.log(`White direction: ${whiteDirection}, Black direction: ${blackDirection}, attempts: ${attempts}, diff: ${angularDiff}`);
+      console.log(`Target color: ${condition.target_group}, White direction: ${whiteDirection}, Black direction: ${blackDirection}, attempts: ${attempts}, diff: ${angularDiff}`);
 
       // const basePairs = [
       //   { color: 'white', direction: whiteDirection, dots: 100, group: 'white' },
