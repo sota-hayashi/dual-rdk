@@ -1,0 +1,258 @@
+% %%「論文」，「レター」，「レター（C分冊）」，「技術研究報告」などのテンプレート
+% %% v3.4 [2023/09/12]
+% %% 1. 「論文」
+% \documentclass[paper]{ieicej}
+% %\documentclass[invited]{ieicej}% 招待論文
+% %\documentclass[survey]{ieicej}% サーベイ論文
+% %\documentclass[comment]{ieicej}% 解説論文
+% %\usepackage[dvipdfmx]{graphicx,xcolor}
+% %%\usepackage[dvips]{graphicx}
+% \usepackage[fleqn]{amsmath}
+% %\usepackage{amsthm}
+% \usepackage{newtxtext}% 英数字フォントの設定を変更しないでください
+% \usepackage[varg]{newtxmath}% % 英数字フォントの設定を変更しないでください
+% %\usepackage{amssymb}
+% %\usepackage{bm}
+
+% \setcounter{page}{1}
+
+% \field{A}
+% \jtitle{論文題目}
+% \etitle{Title in English}
+% \authorlist{%
+%  \authorentry{林 奏汰}{Sota Hayashi}{Osaka}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{所属ラベル}\MembershipNumber{}
+%  %\authorentry[メールアドレス]{和文著者名}{英文著者名}{所属ラベル}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{所属ラベル}[現在の所属ラベル]\MembershipNumber{}
+% }
+% \affiliate[Osaka]{UOsaka}{Uosaka}
+% %\affiliate[所属ラベル]{和文所属}{英文所属}
+% %\paffiliate[]{}
+% %\paffiliate[現在の所属ラベル]{和文所属}
+% \jalcdoi{???????????}% ← このままにしておいてください
+
+% \begin{document}
+% \begin{abstract}
+%     dfhjかsdhふあsdhふはsdjkfはsdhjkfh
+% %和文あらまし 500字以内
+% \end{abstract}
+% \begin{keyword}
+% %和文キーワード 4〜5語
+% \end{keyword}
+% \begin{eabstract}
+% %英文アブストラクト 100 words
+% \end{eabstract}
+% \begin{ekeyword}
+% %英文キーワード
+% \end{ekeyword}
+% \maketitle
+
+% \section{まえがき}
+
+
+% \ack %% 謝辞
+
+% %\bibliographystyle{sieicej}
+% %\bibliography{myrefs}
+% \begin{thebibliography}{99}% 文献数が10未満の時 {9}
+% \bibitem{}
+% \end{thebibliography}
+
+% \appendix
+% \section{}
+
+% % 著者紹介・顔写真の掲載はC分冊の場合は任意です．
+% \begin{biography}
+% \profile{a}{林 奏汰}{現在，大阪大学大学院在学．}
+% %\profile{会員種別}{名前}{紹介文}% 顔写真あり
+% %\profile*{会員種別}{名前}{紹介文}% 顔写真なし
+% \end{biography}
+
+% \end{document}
+
+
+
+% %% 2. 「レター」
+% \documentclass[letter]{ieicej}
+% %\usepackage[dvipdfmx]{graphicx,xcolor}
+% %%\usepackage[dvips]{graphicx}
+% \usepackage[fleqn]{amsmath}
+% %\usepackage{amsthm}
+% \usepackage{newtxtext}% 英数字フォントの設定を変更しないでください
+% \usepackage[varg]{newtxmath}% % 英数字フォントの設定を変更しないでください
+% %\usepackage{amssymb}
+% %\usepackage{bm}
+
+% \setcounter{page}{1}
+
+% \typeofletter{研究速報}
+% %\typeofletter{紙上討論}
+% %\typeofletter{問題提起}
+% %\typeofletter{ショートノート}
+% \field{}
+% \jtitle{}
+% \etitle{}
+% \authorlist{%
+%  \authorentry{}{}{}{}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{会員種別}{所属ラベル}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{会員種別}{所属ラベル}[現在の所属ラベル]\MembershipNumber{}
+% }
+% \affiliate[]{}{}
+% %\affiliate[所属ラベル]{和文所属}{英文所属}
+% %\paffiliate[]{}
+% %\paffiliate[現在の所属ラベル]{和文所属}
+% \jalcdoi{???????????}% ← このままにしておいてください
+
+% \begin{document}
+% \maketitle
+% \begin{abstract}
+% %和文あらまし 120字以内
+% \end{abstract}
+% \begin{keyword}
+% %和文キーワード 4〜5語
+% \end{keyword}
+% \begin{eabstract}
+% %英文アブストラクト 50 words
+% \end{eabstract}
+% \begin{ekeyword}
+% %英文キーワード
+% \end{ekeyword}
+
+% \section{まえがき}
+
+
+% \ack %% 謝辞
+
+% %\bibliographystyle{sieicej}
+% %\bibliography{myrefs}
+% \begin{thebibliography}{99}% 文献数が10未満の時 {9}
+% \bibitem{}
+% \end{thebibliography}
+
+% \appendix
+% \section{}
+
+% \end{document}
+
+
+
+% %% 3. 「レター（C分冊）」
+% \documentclass[electronicsletter]{ieicej}
+% %\usepackage[dvipdfmx]{graphicx,xcolor}
+% %%\usepackage[dvips]{graphicx}
+% \usepackage[fleqn]{amsmath}
+% %\usepackage{amsthm}
+% \usepackage{newtxtext}% 英数字フォントの設定を変更しないでください
+% \usepackage[varg]{newtxmath}% % 英数字フォントの設定を変更しないでください
+% %\usepackage{amssymb}
+% %\usepackage{bm}
+
+% \setcounter{page}{1}
+
+% \field{}
+% \jtitle{}
+% \etitle{}
+% \authorlist{%
+%  \authorentry{}{}{}{}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{会員種別}{所属ラベル}\MembershipNumber{}
+%  %\authorentry{和文著者名}{英文著者名}{会員種別}{所属ラベル}[現在の所属ラベル]\MembershipNumber{}
+% }
+% \affiliate[]{}{}
+% %\affiliate[所属ラベル]{和文所属}{英文所属}
+% %\paffiliate[]{}
+% %\paffiliate[現在の所属ラベル]{和文所属}
+% \jalcdoi{???????????}% ← このままにしておいてください
+
+% \begin{document}
+% \begin{abstract}
+% %和文あらまし 120字以内
+% \end{abstract}
+% \begin{keyword}
+% %和文キーワード 4〜5語
+% \end{keyword}
+% \begin{eabstract}
+% %英文アブストラクト 50 words
+% \end{eabstract}
+% \begin{ekeyword}
+% %英文キーワード
+% \end{ekeyword}
+% \maketitle
+
+% \section{まえがき}
+
+
+% \ack %% 謝辞
+
+% %\bibliographystyle{sieicej}
+% %\bibliography{myrefs}
+% \begin{thebibliography}{99}% 文献数が 10 未満の時 {9}
+% \bibitem{}
+% \end{thebibliography}
+
+% \appendix
+% \section{}
+
+% \end{document}
+
+
+
+%% 4. 「技術研究報告」
+\documentclass[technicalreport]{ieicej}
+%\usepackage[dvipdfmx]{graphicx,xcolor}
+%%\usepackage[dvips]{graphicx}
+\usepackage[fleqn]{amsmath}
+%\usepackage{amsthm}?
+\usepackage{newtxtext}% 英数字フォントの設定を変更しないでください
+\usepackage[varg]{newtxmath}% % 英数字フォントの設定を変更しないでください
+%\usepackage{amssymb}
+%\usepackage{bm}
+
+\tecrepyear{2026}% X を適宜書き換えてください
+\jtitle{}
+\jsubtitle{}
+\etitle{}
+\esubtitle{}
+\authorlist{%
+ \authorentry{林 奏汰}{Sota Hayashi}{Osaka}
+% \authorentry[メールアドレス]{和文著者名}{英文著者名}{所属ラベル}
+}
+\affiliate[Osaka]{}{}
+%\affiliate[所属ラベル]{和文勤務先\\ 連絡先住所}{英文勤務先\\ 英文連絡先住所}
+
+%\MailAddress{$\dagger$hanako@denshi.ac.jp,
+% $\dagger\dagger$\{taro,jiro\}@jouhou.co.jp}
+
+\begin{document}
+\begin{jabstract}
+人は，環境に潜む規則性を意識せずとも自然に習得する能力を有しており，これは暗黙的学習と呼ばれる．
+暗黙的学習の進行過程には顕著な個人差が認められるが，その要因については十分に解明されていない．
+本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすと仮定し，集中度を反映する指標である反応時間の変動と暗黙的学習の関係を検討した．
+ヒトを対象とした行動実験（N=53）では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
+実験参加者は，白か黒のどちらかを選択し，その色のドット群の運動方向を報告し，選択ドットと運動方向誤差に応じて報酬を得た．
+ドット群の選択には暗黙的な報酬構造が設定されており，参加者はこの報酬構造を学習することで獲得報酬を最大化することが可能であった．
+分析の結果，反応時間の変動が大きい参加者群において，課題の進行にともない高報酬なドット群を選択する割合が有意に増加することが確認された．
+反応時間の変動は注意状態と散漫状態の遷移を反映していると考えられる．
+したがって，本結果は集中状態の動的な変化が暗黙的学習の進行を規定する要因になり得ることを示唆している．
+%和文あらまし
+\end{jabstract}
+\begin{jkeyword}
+%和文キーワード
+\end{jkeyword}
+\begin{eabstract}
+%英文アブストラクト
+\end{eabstract}
+\begin{ekeyword}
+%英文キーワード
+\end{ekeyword}
+\maketitle
+
+\section{はじめに}
+林奏汰
+
+%\bibliographystyle{sieicej}
+%\bibliography{myrefs}
+\begin{thebibliography}{97}% 文献数が10未満の時 {9}
+\bibitem{}
+\end{thebibliography}
+
+\end{document}
