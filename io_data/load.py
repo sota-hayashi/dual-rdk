@@ -75,6 +75,7 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
         base["response_angle_rdk"] = follow.get("response_angle_rdk")
         base["response_angle_css"] = follow.get("response_angle_css")
         base["random_initial_angle"] = follow.get("random_initial_angle")
+        base["target_group"] = follow.get("target_group")
         combined_rows.append(base)
 
     combined_df = pd.DataFrame(combined_rows).reset_index(drop=True)
@@ -84,7 +85,7 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
     """Annotate each trial with whether the target or distractor was chosen.
        0 if target chosen, 1 if distractor chosen, -1 if undecided.
     """
-    df = df.copy()
+    df = df.sort_values("num_trial").copy() if "num_trial" in df.columns else df.copy()
 
     def determine_choice(row):
         if abs(row["angular_error_target"]) < 45.0:
@@ -93,9 +94,50 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
             return 0
         else:
             return -1
+        
+    def infer_choice(row):
+        if row["chosen_item"] == 1:
+            return row["target_group"]  # ターゲット色
+        if row["chosen_item"] == 0:
+            return "white" if row["target_group"] == "black" else "black"  # 反対色=ディストラクター色
+        return np.nan  # -1は除外
     
     df["chosen_item"] = df.apply(determine_choice, axis=1)
+    df["chosen_color"] = df.apply(infer_choice, axis=1)
     df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"] and row["chosen_item"] == -1, axis=1)
+
+    df["prev_chosen_color"] = df["chosen_color"].shift(1)
+    df["prev_reward_points"] = df["reward_points"].shift(1)
+
+    # 前試行の報酬で win/lose を判定
+    df["prev_win"] = (df["prev_reward_points"] > 2).astype('Int64')
+    df["prev_lose"] = (df["prev_reward_points"] <= 2).astype('Int64')
+
+    # stay/switch（前試行の chosen_color と比較）
+    df["stay"] = (df["chosen_color"] == df["prev_chosen_color"]).astype('Int64')
+    df["switch"] = (df["chosen_color"] != df["prev_chosen_color"]).astype('Int64')
+
+    # 前or今が NaN のときは stay/switch も未定義に
+    invalid_choice = df["chosen_color"].isna() | df["prev_chosen_color"].isna()
+    df.loc[invalid_choice, ["stay", "switch"]] = pd.NA
+    
+    invalid_reward = df["prev_reward_points"].isna()
+    df.loc[invalid_reward, ["prev_win", "prev_lose"]] = pd.NA
+
+    # win-stay / lose-switch
+    # boolean型で初期化し、条件を満たす行のみTrueを設定。他はNAのまま。
+    df["win_stay"] = pd.Series(dtype='boolean')
+    df["lose_switch"] = pd.Series(dtype='boolean')
+
+    valid_win_stay = (df["prev_win"] == 1) & (df["stay"] == 1)
+    df.loc[valid_win_stay, "win_stay"] = True
+
+    valid_lose_switch = (df["prev_lose"] == 1) & (df["switch"] == 1)
+    df.loc[valid_lose_switch, "lose_switch"] = True
+
+    # 不要になった中間列を最後に削除
+    df.drop(columns=["prev_chosen_color", "prev_reward_points"], inplace=True)
+    
     return df
 
 def exclude_trials(
@@ -178,7 +220,7 @@ def load_all_concatenated(
             # "660d675bbdf59327d9deb4ad", # else(-1)がn=12と多い
             # "67d1d172e049a486152a5ce9", # else(-1)がn=13と多い
 
-            "5e92178e8ee4fe54b65b7c39", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択する傾向が若干ある．
+            # "5e92178e8ee4fe54b65b7c39", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択する傾向が若干ある．
             # # "6932b19c5260dda743fca4af",
             # # "602e48dbf732e9962e27fdbd",
             # # "66723b1f7c3cf6961f0868a3",
@@ -202,8 +244,8 @@ def load_all_concatenated(
 
             # 2026/1/24に集めたデータのうち、以下の被験者は除外する##
             # 遷移確率が0.9, 0.1の場合と，0.7, 0.3の場合でそれぞれの場合でon-off-cyclingにおいて被っていない被験者を除外
-            "6614fb6af3c5aa23b962ea2d", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択している．
-            "63039f41fa5c21d483996be2", # 上に同様
+            # "6614fb6af3c5aa23b962ea2d", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択している．
+            # "63039f41fa5c21d483996be2", # 上に同様
             # "67cc3f4c640c0ff4df30a225",
             # "68e541cbbf146b5c074849ac",
             # "696c3f1675addf129b4bff87",
@@ -213,7 +255,7 @@ def load_all_concatenated(
             
             ## 2026/2/5に集めたデータのうち、以下の被験者は除外する##
             # "697cc09a8dd7b2c8061ff4e5",# task-irrelevantな試行が19試行
-            "667bd577710d52a05ac09036",# シグモイド関数のフィッティングで有意な負の結果が出た，つまり試行を重ねるとディストラクターを選択するようになっていった参加者
+            # "667bd577710d52a05ac09036",# シグモイド関数のフィッティングで有意な負の結果が出た，つまり試行を重ねるとディストラクターを選択するようになっていった参加者
             # 色バイアスが強い被験者群（80%以上の偏りを示す被験者群）
             # 群ごとに分けているが，それぞれの参加者はhmmのrandom seedによって多少の移動があるため，
             # そこまで厳密に考えなくて良い
@@ -237,23 +279,25 @@ def load_all_concatenated(
             "68238de3a3ba8b99fef9b7ca", # b=46, w=2
             "677d283c3ac4eacdfc7a59b4", # b=39, w=1
             "611ce44efa3822c780ae383e", # b=35, w=2
-            "615ab5adc70f6edcacba5860", # b=9, w=32 # この被験者においては78%の偏りを示している
+            # "615ab5adc70f6edcacba5860", # b=9, w=32 # この被験者においては78%の偏りを示している
 
             "67800b133eced63d8ec0cde8", # task-irrelevantな試行が16試行
             "697cc09a8dd7b2c8061ff4e5", # task-irrelevantな試行が18試行
+            # '68e541cbbf146b5c074849ac', '6932b19c5260dda743fca4af', '6977bd8c4a66002ceaa54c1d', '697a7ca703a2f04efb2de9e9',
 
 
-            "673f4f8fa5b4a47492e30aea", # RTの標準偏差が極端に大きい（std=20000ms）
-            "666408427db5e38fe0ea1736", # RTの標準偏差が極端に大きい（std=17000ms）
-            "65fb13bebfa339f73b4cf76a", # RTの標準偏差が極端に大きい（std=38000ms）
-            "5d617ba9364f9a0019f1dac3", # RTの標準偏差が極端に大きい（std=5900ms）
-            "682b23f345fc428cc9586a06", # RTの標準偏差が極端に大きい（std=5800ms）
-
+            # "673f4f8fa5b4a47492e30aea", # RTの標準偏差が極端に大きい（std=20000ms）
+            # "666408427db5e38fe0ea1736", # RTの標準偏差が極端に大きい（std=17000ms）
+            # "65fb13bebfa339f73b4cf76a", # RTの標準偏差が極端に大きい（std=38000ms）
+            # "5d617ba9364f9a0019f1dac3", # RTの標準偏差が極端に大きい（std=5900ms）
+            # "682b23f345fc428cc9586a06", # RTの標準偏差が極端に大きい（std=5800ms）
+            # '5987bfb80e411a0001d83837', '5b2150d538b0be00014137fb', '60a59d92b7363e85a2945dde', '60fcd2ade28cc412d542108c', '612376826a580ca0368bb19f', '650f65aac58fe4dc08bbe23f', '654fd3d72b14d852c7fff2b4', '6550edd3c5d5a51c51ab1224', '656bb5b282d8f0267db9d167', '65f2f5ae1f9747ed36bd7226', '65ff850ad8ac7b0e4cf9ec57', '660bdc29f5dec2745c7e7ee3', '660d675bbdf59327d9deb4ad', '6631997e0554bb6d25062fd4', '663636e1e732142a9c211523', '669533c82c03a4d6320159d3', '66b0cd32e02e57ac86e82550', '66b0ce2b37f5b9ab41e82585', '67911b9be5af0ac0763a28c7', '67cc3f4c640c0ff4df30a225', '67d1d172e049a486152a5ce9', '67eb5332af03cf75862d5e87', '67f864f1b7ea815cc3583637', '680aac52abce2170943ff846', '68598a1d4cebd213b2abb1d9', '6902584f39b4b2ce82a5eda6', '6917b43630e666e39c18fa7b', '692d65c6d41395358622de47', '692e41b6e14a945652e39997', '6978e94c86ef2c792e089759', '697ca9cfd08ef9e2ffd194c9', '697cbad1e4fa658183a9a4ba'
+            # '5d83b53430e67e0018bf3b38', '5dd0dce9ed7ea418f59810e4', '5e6473fbc15dbe1f71eea95b', '5ee7fbc114d0a60f9b076fb6', '602e48dbf732e9962e27fdbd', '6162fc52fa68079d28dc5be9', '650f65aac58fe4dc08bbe23f_2', '65ccca52871269168cc029b5', '65feaaac53eb219f09ad5ea0', '6613f83d1a9cf059d0af91ec', '664c9a37d570871d534dd3c2', '66723b1f7c3cf6961f0868a3', '667a7ab2a6179deb78e9dd1a', '66cc85c87017ef38adbaebc6', '68e541cbbf146b5c074849ac', '69124176667ec0990dfb9da1', '6932b19c5260dda743fca4af', '69727a44c5c16e6541319a6a', '6977bd8c4a66002ceaa54c1d', '697a7ca703a2f04efb2de9e9', '697a8232cf359493f5c6f3fb'
 
 
 
         ]:
-            print(f"Excluding subject {subj_id}")
+            # print(f"Excluding subject {subj_id}")
             continue
         try:
             concat_df_practice, concat_df_learning, concat_df_awareness = load_and_prepare(file_path)
@@ -330,3 +374,4 @@ def load_categorized_subjects(
     subject_states_list = list(filtered[['subject', 'category', 'states', 'state_labels', 'observations']].to_records(index=False))
     
     return subject_states_list
+    
