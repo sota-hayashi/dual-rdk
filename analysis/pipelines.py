@@ -26,10 +26,10 @@ def run_default():
     subjects_hmm, _ = run_hmm(all_data_learning=all_data_learning, categories=categories, train=False)
 
     # 3) 行動基準で被験者を抽出
-    subjects_behavior_on, subjects_behavior_off = get_subjects_by_behavior_data(all_data_learning, threshold=2)
+    subjects_behavior_on, subjects_behavior_off = get_subjects_by_behavior_data(all_data_learning, threshold=1)
 
     # 4) 両方の条件を満たす被験者を抽出（AND）
-    subjects = subjects_behavior_off
+    subjects = subjects_behavior_on + subjects_behavior_off
     # 5) フィルタして行動解析
     if subjects:
         all_data_practice, all_data_learning, all_data_awareness = load_all_concatenated(
