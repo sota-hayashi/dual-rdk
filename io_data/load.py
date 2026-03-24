@@ -106,6 +106,12 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
     df["chosen_color"] = df.apply(infer_choice, axis=1)
     df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"] and row["chosen_item"] == -1, axis=1)
 
+    df["angular_error"] = np.where(
+        df["angular_error_target"].abs() < df["angular_error_distractor"].abs(), # ターゲットAEとディストラクターAEのどちらを選択するか
+        df["angular_error_target"],
+        df["angular_error_distractor"]
+    )
+
     df["prev_chosen_color"] = df["chosen_color"].shift(1)
     df["prev_reward_points"] = df["reward_points"].shift(1)
 
