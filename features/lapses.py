@@ -42,7 +42,8 @@ def compute_out_of_zone_ratio_of_mean_AE(df: pd.DataFrame, max_abs_angle: float 
     if max_abs_angle <= 0:
         raise ValueError("max_abs_angle must be positive.")
 
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    df["chosen_item"] = df["chosen_item"].replace({-1: 0})
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     valid = df.dropna(subset=needed).copy()
     if valid.empty:
         return np.nan
