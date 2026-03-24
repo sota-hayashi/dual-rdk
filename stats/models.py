@@ -330,7 +330,8 @@ def logit_regression(
     results = {}
     for subj_id, df in concat_list:
         df = df.dropna(subset=["chosen_item", "num_trial", "rt"])
-        df = df[df["chosen_item"].isin([0, 1])].copy()
+        df["chosen_item"] = df["chosen_item"].replace({-1: 0})
+        # df = df[df["chosen_item"].isin([0, 1])].copy()
         # df = df[df["num_trial"] > 17]
         if df.empty:
             continue
