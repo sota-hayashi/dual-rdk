@@ -2,7 +2,8 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp, shapiro, mannwhitneyu
+from scipy import stats
+from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp, shapiro, mannwhitneyu, normaltest, lognorm, gamma, invgauss, kstest
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
@@ -252,11 +253,45 @@ def t_test_rt_difference_between_target_distractor(
     return {
         "n_target": len(target_rt),
         "n_distractor": len(distractor_rt),
-        "t_stat": t_stat,
-        "p_value": p_value,
-        "mean_target_rt": float(target_rt.mean()),
-        "mean_distractor_rt": float(distractor_rt.mean()),
-        "mean_diff_rt": float(target_rt.mean() - distractor_rt.mean())
+        "t_stat": round(t_stat, 2),
+        "p_value": round(p_value, 5),
+        "mean_target_rt": round(target_rt.mean()),
+        "std_target_rt": round(target_rt.std()),
+        "mean_distractor_rt": round(distractor_rt.mean()),
+        "std_distractor_rt": round(distractor_rt.std()),
+        "mean_diff_rt": round(target_rt.mean() - distractor_rt.mean())
+    }
+
+def t_test_rt_difference_between_white_black(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, float]:
+    """
+    白いターゲットと黒いターゲットのRT差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    if combined.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    work = combined.dropna(subset=["rt", "target_group"]).copy()
+    if work.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    white_rt = work.loc[work["target_group"] == "white", "rt"].astype(float)
+    black_rt = work.loc[work["target_group"] == "black", "rt"].astype(float)
+    if white_rt.empty or black_rt.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(white_rt, black_rt, equal_var=False)
+    return {
+        "n_white": len(white_rt),
+        "n_black": len(black_rt),
+        "t_stat": round(t_stat, 2),
+        "p_value": round(p_value, 5),
+        "mean_white_rt": round(white_rt.mean()),
+        "std_white_rt": round(white_rt.std()),
+        "mean_black_rt": round(black_rt.mean()),
+        "std_black_rt": round(black_rt.std()),
+        "mean_diff_rt": round(white_rt.mean() - black_rt.mean())
     }
 
 
@@ -269,9 +304,9 @@ def t_test_count_target_choice_between_periods(
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     # df = df.copy()
-    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+    df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
     first_half_choices = df.loc[df["num_trial"] <= n_trial - 1, "chosen_item"]
@@ -303,7 +338,78 @@ def t_test_reward_points_between_periods(
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    # df = df[df["chosen_item"].isin([0, 1])].copy()
+
+    if df.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "reward_points"]
+    second_half_points = df.loc[df["num_trial"] >= n_trial, "reward_points"]
+
+    if first_half_points.empty or second_half_points.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(
+        first_half_points,
+        second_half_points,
+        equal_var=False
+    )
+    results = {
+        "n": len(concat_list),
+        "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_total": round(df["reward_points"].mean(), 3),
+        "mean_first_half": round(first_half_points.mean(), 3),
+        "mean_second_half": round(second_half_points.mean(), 3)
+        }
+    return results
+
+def t_test_Minimum_Angular_Error_between_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    タスクの前半/後半の獲得報酬の差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+
+    df["error_value"] = np.where(
+        df["angular_error_target"].abs() < df["angular_error_distractor"].abs(), # ターゲットAEとディストラクターAEのどちらを選択するか
+        df["angular_error_target"].abs(),
+        df["angular_error_distractor"].abs(),
+    )
+    if df.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+    first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "error_value"].abs()
+    second_half_points = df.loc[df["num_trial"] >= n_trial, "error_value"].abs()
+
+    if first_half_points.empty or second_half_points.empty:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    t_stat, p_value = ttest_ind(
+        first_half_points,
+        second_half_points,
+        equal_var=False
+    )
+    results = {
+        "n": len(concat_list),
+        "t_stat": round(t_stat, 2),
+        "p_value": f"{p_value:.6f}",
+        "mean_total": round(df["error_value"].abs().mean(), 2),
+        "mean_first_half": round(first_half_points.mean(), 2),
+        "mean_second_half": round(second_half_points.mean(), 2)
+        }
+    return results
+
+def t_test_Target_Angular_Error_between_periods(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    n_trial: int = TRIALS_PER_SESSION // 2
+) -> Dict[str, float]:
+    """
+    タスクの前半/後半の獲得報酬の差をt検定で検定する。
+    """
+    combined = combine_subjects(concat_list)
+    df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
+
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
     first_half_points = df.loc[df["num_trial"] <= n_trial - 1, "angular_error_target"].abs()
@@ -321,9 +427,9 @@ def t_test_reward_points_between_periods(
         "n": len(concat_list),
         "t_stat": round(t_stat, 2),
         "p_value": f"{p_value:.6f}",
-        "mean_total": df["angular_error_target"].abs().mean(),
-        "mean_first_half": round(first_half_points.mean(), 3),
-        "mean_second_half": round(second_half_points.mean(), 3)
+        "mean_total": round(df["angular_error_target"].abs().mean(), 2),
+        "mean_first_half": round(first_half_points.mean(), 2),
+        "mean_second_half": round(second_half_points.mean(), 2)
         }
     return results
 
@@ -339,23 +445,23 @@ def t_test_count_target_choice_between_subjects(
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     # df = df.copy()
-    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+    df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
     if df.empty:
         return {"t_stat": np.nan, "p_value": np.nan}
     first_mask = df["num_trial"] <= n_trial - 1
     second_mask = df["num_trial"] >= n_trial
 
     per_subject = (
-        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", pd.NA)))
           .dropna(subset=["half"])
           .groupby(["subject", "half"], as_index=False)["chosen_item"]
           .mean()
           .pivot(index="subject", columns="half", values="chosen_item")
     )
     per_subject = per_subject.dropna(subset=["first", "second"]).copy()
-    per_subject["delta"] = per_subject["second"] - per_subject["first"]
+    per_subject["delta"] = per_subject["second"]
 
     group1_delta = per_subject.loc[per_subject.index.isin(first_group), "delta"]
     group2_delta = per_subject.loc[per_subject.index.isin(second_group), "delta"]
@@ -395,16 +501,16 @@ def test_shapiro_wilk(
     """    
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     # df = df.copy()
-    # df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+    df["chosen_item"] = df["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
     if df.empty:
         return {"w_stat": np.nan, "p_value": np.nan}
     first_mask = df["num_trial"] <= n_trial - 1
     second_mask = df["num_trial"] >= n_trial
 
     per_subject = (
-        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", pd.NA)))
           .dropna(subset=["half"])
           .groupby(["subject", "half"], as_index=False)["chosen_item"]
           .mean()
@@ -438,14 +544,15 @@ def Mann_Whitney_U_test_count_target_choice_between_subjects(
     """
     combined = combine_subjects(concat_list)
     df = combined.dropna(subset=["chosen_item", "num_trial", "rt"]).copy()
-    df = df[df["chosen_item"].isin([0, 1])].copy()
+    df["chosen_item"] = df["chosen_item"].replace({-1: 0})
+    # df = df[df["chosen_item"].isin([0, 1])].copy()
     if df.empty:
         return {"u_stat": np.nan, "p_value": np.nan}
     first_mask = df["num_trial"] <= n_trial - 1
     second_mask = df["num_trial"] >= n_trial
 
     per_subject = (
-        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", np.nan)))
+        df.assign(half=np.where(first_mask, "first", np.where(second_mask, "second", pd.NA)))
           .dropna(subset=["half"])
           .groupby(["subject", "half"], as_index=False)["chosen_item"]
           .mean()
@@ -470,3 +577,220 @@ def Mann_Whitney_U_test_count_target_choice_between_subjects(
         "n_group2": int(group2_delta.shape[0])
     }
     return results
+
+def test_log_normality(arr):
+    arr = np.asarray(arr, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    arr = arr[arr > 0]
+
+    log_arr = np.log(arr)
+
+    shapiro_stat, shapiro_p = shapiro(log_arr)
+    normaltest_stat, normaltest_p = normaltest(log_arr)
+
+    return {
+        "shapiro_stat": shapiro_stat,
+        "shapiro_p": shapiro_p,
+        "normaltest_stat": normaltest_stat,
+        "normaltest_p": normaltest_p,
+    }
+
+def compare_distributions(arr):
+    arr = np.asarray(arr, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    arr = arr[arr > 0]
+
+    results = {}
+
+    # lognormal
+    shape, loc, scale = lognorm.fit(arr, floc=0)
+    ll = np.sum(lognorm.logpdf(arr, shape, loc=loc, scale=scale))
+    aic = 2 * 2 - 2 * ll   # shape, scale の2パラメータ（loc固定）
+    results["lognorm"] = {"loglik": ll, "AIC": aic}
+
+    # gamma
+    a, loc, scale = gamma.fit(arr, floc=0)
+    ll = np.sum(gamma.logpdf(arr, a, loc=loc, scale=scale))
+    aic = 2 * 2 - 2 * ll
+    results["gamma"] = {"loglik": ll, "AIC": aic}
+
+    # inverse Gaussian
+    mu, loc, scale = invgauss.fit(arr, floc=0)
+    ll = np.sum(invgauss.logpdf(arr, mu, loc=loc, scale=scale))
+    aic = 2 * 2 - 2 * ll
+    results["invgauss"] = {"loglik": ll, "AIC": aic}
+
+    return results
+
+def evaluate_lognormal_fit(values):
+    arr = np.asarray(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    arr = arr[arr > 0]
+
+    if arr.size < 3:
+        raise ValueError("Not enough positive finite data.")
+
+    log_arr = np.log(arr)
+    mu = log_arr.mean()
+    sigma = log_arr.std(ddof=1)
+
+    # KS statistic
+    ks_D, ks_p = kstest(arr, 'lognorm', args=(sigma, 0, np.exp(mu)))
+
+    # Normality test on log-values
+    shapiro_W, shapiro_p = shapiro(log_arr)
+
+    # Log-likelihood
+    loglik = np.sum(lognorm.logpdf(arr, s=sigma, loc=0, scale=np.exp(mu)))
+
+    # AIC (2 parameters: mu, sigma)
+    aic = 2 * 2 - 2 * loglik
+
+    return {
+        "n": len(arr),
+        "mu_log": mu,
+        "sigma_log": sigma,
+        "ks_D": ks_D,
+        "ks_p": ks_p,
+        "shapiro_W_on_log": shapiro_W,
+        "shapiro_p_on_log": shapiro_p,
+        "loglik": loglik,
+        "AIC": aic,
+    }
+
+import numpy as np
+from scipy import stats
+from typing import Any, Dict, Optional
+
+
+def fit_exgaussian_and_evaluate(
+    values,
+    n_mc_samples: int = 5000,
+    statistic: str = "ad",   # "ad", "ks", "cvm", "filliben"
+    random_state: Optional[int] = 42,
+    floc: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    RTデータに ex-Gaussian (scipy.stats.exponnorm) を最尤推定でフィットし、
+    Monte Carlo goodness-of-fit test により適合度を評価する。
+
+    Parameters
+    ----------
+    values : array-like
+        RTデータ（正の実数を想定）
+    n_mc_samples : int
+        goodness_of_fit に使う Monte Carlo サンプル数
+    statistic : str
+        goodness_of_fit の統計量
+        "ad", "ks", "cvm", "filliben" から選択
+    random_state : int or None
+        乱数シード
+    floc : float or None
+        loc を固定したいときに指定。通常は None のままでよい。
+        RTが必ず正で、理論上0起点に寄せたいなど特殊な意図がある場合だけ使う。
+
+    Returns
+    -------
+    result : dict
+        フィット結果と適合度指標をまとめた辞書
+    """
+    arr = np.asarray(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+
+    if arr.size < 5:
+        raise ValueError("有効なデータ数が少なすぎます。少なくとも5点以上を推奨します。")
+    if np.any(arr <= 0):
+        raise ValueError("RTデータとして正の値を想定しているため、0以下の値が含まれています。")
+
+    # 1) MLE fit
+    if floc is None:
+        K, loc, scale = stats.exponnorm.fit(arr)
+    else:
+        K, loc, scale = stats.exponnorm.fit(arr, floc=floc)
+
+    # ex-Gaussian のよくあるパラメータへ変換
+    # SciPy: loc = mu, scale = sigma, tau = K * sigma
+    mu = float(loc)
+    sigma = float(scale)
+    tau = float(K * scale)
+    lam = float(1.0 / tau)
+
+    # 2) 対数尤度・AIC・BIC
+    logpdf = stats.exponnorm.logpdf(arr, K, loc=loc, scale=scale)
+    loglik = float(np.sum(logpdf))
+    k_params = 3 if floc is None else 2
+    aic = float(2 * k_params - 2 * loglik)
+    bic = float(k_params * np.log(arr.size) - 2 * loglik)
+
+    # 3) 経験CDFと理論CDFの最大差（参考）
+    # goodness_of_fit の "ks" と似た発想だが、ここでは単なる記述量として計算
+    x_sorted = np.sort(arr)
+    ecdf = np.arange(1, arr.size + 1) / arr.size
+    fitted_cdf = stats.exponnorm.cdf(x_sorted, K, loc=loc, scale=scale)
+    ks_distance_descriptive = float(np.max(np.abs(ecdf - fitted_cdf)))
+
+    # 4) Monte Carlo goodness-of-fit test
+    # SciPy が利用可能なら、推定後再フィットを含む正しい流れで p 値を返す
+    gof = stats.goodness_of_fit(
+        dist=stats.exponnorm,
+        data=arr,
+        statistic=statistic,
+        n_mc_samples=n_mc_samples,
+        rng=random_state,
+    )
+
+    # 5) 追加で KS / CvM / AD の記述的統計量だけ並べたい場合
+    #   - p値は statistic で選んだもののみ返す
+    #   - 他は「ズレ量の参考値」として扱う
+    def _ks_stat(data):
+        return stats.kstest(
+            data,
+            stats.exponnorm.cdf,
+            args=(K, loc, scale)
+        ).statistic
+
+    def _cvm_stat(data):
+        return stats.cramervonmises(
+            data,
+            lambda x: stats.exponnorm.cdf(x, K, loc=loc, scale=scale)
+        ).statistic
+
+    ks_stat_desc = float(_ks_stat(arr))
+    cvm_stat_desc = float(_cvm_stat(arr))
+
+    # Anderson-Darling は SciPy に ex-Gaussian 用の単独関数がないので、
+    # 汎用 goodness_of_fit の statistic="ad" を使うのが自然
+    result = {
+        "n": int(arr.size),
+        "fit_scipy": {
+            "K": float(K),
+            "loc": float(loc),
+            "scale": float(scale),
+        },
+        "fit_exgaussian": {
+            "mu": mu,
+            "sigma": sigma,
+            "tau": tau,
+            "lambda": lam,
+        },
+        "fit_quality": {
+            "loglik": loglik,
+            "AIC": aic,
+            "BIC": bic,
+            "ks_distance_descriptive": ks_distance_descriptive,
+            "ks_stat_descriptive": ks_stat_desc,
+            "cvm_stat_descriptive": cvm_stat_desc,
+        },
+        "goodness_of_fit_test": {
+            "statistic_name": statistic,
+            "statistic_value": float(gof.statistic),
+            "pvalue": float(gof.pvalue),
+            "n_mc_samples": int(n_mc_samples),
+        },
+        "interpretation_hint": (
+            "pvalue が小さいほど『この ex-Gaussian から来たとみなすにはズレが大きい』方向です。"
+            "逆に pvalue が十分大きければ、少なくともこの検定では ex-Gaussian を棄却しません。"
+            "ただし pvalue は『モデルが真である確率』ではありません。"
+        ),
+    }
+    return result
