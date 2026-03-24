@@ -80,6 +80,23 @@ def calculate_rt_deviance_mean(
         updated.append((subj_id, work))
     return updated
 
+def compute_mean_reward_points(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, float]]:
+    """
+    各被験者の報酬ポイントの平均を計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        if "reward_points" not in df.columns:
+            raise ValueError("DataFrame lacks 'reward_points' column.")
+        early_trials = df[df["num_trial"] < 24]
+        late_trials = df[df["num_trial"] >= 24]
+        mean_reward_points = df["reward_points"].mean()
+        mean_reward_points_diff = late_trials["reward_points"].mean() - early_trials["reward_points"].mean()
+        results.append((subj_id, mean_reward_points, mean_reward_points_diff))
+    return pd.DataFrame(results, columns=["subject", "mean_reward_points", "mean_reward_points_diff"])
+
 def compute_RT_standard_deviance(
     concat_list: List[Tuple[str, pd.DataFrame]],
 ) -> List[Tuple[str, float]]:
@@ -90,12 +107,47 @@ def compute_RT_standard_deviance(
     for subj_id, df in concat_list:
         df = df.dropna(subset=["rt"])
         rt = pd.to_numeric(df["rt"], errors="coerce")
-        rt = rt[24:]
+        # rt = rt[:16]
+        rt = np.log(rt)
         std = rt.std(ddof=1)
         results.append((subj_id, std))
     return pd.DataFrame(results, columns=["subject", "rt_std"])
 
-def compute_AE_standard_deviance(
+def compute_RT_mean(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, float]]:
+    """
+    各被験者のRTの平均を計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        rt = pd.to_numeric(df["rt"], errors="coerce")
+        # rt = rt[:16]
+        rt = np.log(rt)
+        mean = rt.mean()
+        results.append((subj_id, mean))
+    return pd.DataFrame(results, columns=["subject", "rt_mean"])
+
+def compute_RT_coefficient_of_variation(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> List[Tuple[str, float]]:
+    """
+    各被験者のRTの変動係数（標準偏差/平均）を計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        rt = pd.to_numeric(df["rt"], errors="coerce")
+        # rt = rt[:16]
+        rt = np.log(rt)
+        mean = rt.mean()
+        std = rt.std(ddof=1)
+        cv = std / mean if mean != 0 else np.nan
+        results.append((subj_id, cv))
+    return pd.DataFrame(results, columns=["subject", "rt_cv"])
+
+def compute_minimum_AE_standard_deviance(
     concat_list: List[Tuple[str, pd.DataFrame]],
 ) -> List[Tuple[str, float]]:
     """
@@ -104,15 +156,15 @@ def compute_AE_standard_deviance(
     results = []
     for subj_id, df in concat_list:
         df = df.dropna(subset=["rt"])
-        # df["error_value"] = np.where(
-        #     df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
-        #     df["angular_error_target"].abs(),
-        #     df["angular_error_distractor"].abs(),
-        # )
-        df["error_value"] = df["angular_error_target"].abs()
+        df["error_value"] = np.where(
+            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(), # ターゲットAEとディストラクターAEのどちらを選択するか
+            df["angular_error_target"].abs(),
+            df["angular_error_distractor"].abs(),
+        )
+        # df["error_value"] = df["angular_error_target"].abs() # ターゲットAEのみを対象とする
         std = df["error_value"].std(ddof=1)
         results.append((subj_id, std))
-    return pd.DataFrame(results, columns=["subject", "ae_std"])
+    return pd.DataFrame(results, columns=["subject", "min_ae_std"])
 
 def compute_slope_of_ae_over_trials_all(
     concat_list: List[Tuple[str, pd.DataFrame]],
@@ -149,9 +201,57 @@ def compute_mean_angular_error_subjects(
         angular_error = np.where(target_error < distractor_error, target_error, distractor_error)
         mean_target_error = target_error.mean()
         mean_distractor_error = distractor_error.mean()
-        mean_angular_error = angular_error.mean()
-        results.append((subj_id, mean_target_error, mean_distractor_error, mean_angular_error))
-    return pd.DataFrame(results, columns=["subject", "mean_target_angular_error", "mean_distractor_angular_error", "mean_angular_error"])
+        mean_min_angular_error = angular_error.mean()
+
+        early_trials = df[df["num_trial"] < 24]
+        late_trials = df[df["num_trial"] >= 24]
+        
+        mean_target_error_early = early_trials["angular_error_target"].abs().mean()
+        mean_target_error_late = late_trials["angular_error_target"].abs().mean()
+
+        mean_angular_error_early = np.where(early_trials["angular_error_target"].abs() < early_trials["angular_error_distractor"].abs(), 
+                                            early_trials["angular_error_target"].abs(), 
+                                            early_trials["angular_error_distractor"].abs()).mean()
+        mean_angular_error_late = np.where(late_trials["angular_error_target"].abs() < late_trials["angular_error_distractor"].abs(), 
+                                            late_trials["angular_error_target"].abs(), 
+                                            late_trials["angular_error_distractor"].abs()).mean()
+
+        target_angular_error_diff = mean_target_error_late - mean_target_error_early
+        angular_error_diff = mean_angular_error_late - mean_angular_error_early
+        
+        results.append((subj_id, mean_target_error, mean_distractor_error, mean_min_angular_error, target_angular_error_diff, angular_error_diff))
+    return pd.DataFrame(results, columns=["subject", "mean_target_angular_error", "mean_distractor_angular_error", "mean_min_angular_error", "target_angular_error_diff", "angular_error_diff"])
+
+def compute_win_stay_lose_switch_rate_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    各被験者のwin-stay率を計算する。
+    win: df["win_stay"] == True の試行
+    stay: 直前の選択と同じ選択をすること
+    lose: df["win_stay"] == False の試行
+    switch: 直前の選択と異なる選択をすること
+    Returns: DataFrame(subject, win_stay_rate, lose_switch_rate)
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"])
+        if "win_stay" not in df.columns:
+            raise ValueError("DataFrame lacks 'win_stay' column.")
+        win_trials = df[df["prev_win"] == True]
+        lose_trials = df[df["prev_lose"] == True]
+        if win_trials.empty:
+            win_stay_rate = np.nan
+        else:
+            stay_count = (win_trials["win_stay"] == True).sum()
+            win_stay_rate = stay_count / len(win_trials)
+        if lose_trials.empty:
+            lose_switch_rate = np.nan
+        else:
+            switch_count = (lose_trials["lose_switch"] == True).sum()
+            lose_switch_rate = switch_count / len(lose_trials)
+        results.append((subj_id, win_stay_rate, lose_switch_rate))
+    return pd.DataFrame(results, columns=["subject", "win_stay_rate", "lose_switch_rate"])
 
 
 def cancatenate_necessary_behavioral_df(
@@ -163,12 +263,16 @@ def cancatenate_necessary_behavioral_df(
     df_merged = []
     task_relevant_choice_df = compute_task_relevant_choice_rate_subjects(concat_list)
     target_choice_df = compute_target_choice_rate_subjects(concat_list)
+    rt_mean = compute_RT_mean(concat_list)
     rt_variances = compute_RT_standard_deviance(concat_list)
-    ae_variances = compute_AE_standard_deviance(concat_list)
+    rt_cv = compute_RT_coefficient_of_variation(concat_list)
+    ae_variances = compute_minimum_AE_standard_deviance(concat_list)
     slope_df = compute_slope_of_ae_over_trials_all(concat_list)
     mean_angular_error_df = compute_mean_angular_error_subjects(concat_list)
+    win_stay_df = compute_win_stay_lose_switch_rate_subjects(concat_list)
+    reward_points_df = compute_mean_reward_points(concat_list)
 
-    data_frames = [task_relevant_choice_df, target_choice_df, rt_variances, ae_variances, slope_df, mean_angular_error_df]
+    data_frames = [task_relevant_choice_df, target_choice_df, rt_mean, rt_variances, rt_cv, ae_variances, slope_df, mean_angular_error_df, win_stay_df, reward_points_df]
     df_merged = reduce(lambda left, right: pd.merge(left, right, on='subject', how='inner'), data_frames)
 
     return df_merged
@@ -185,13 +289,13 @@ def compute_target_choice_rate_subjects(
         if "chosen_item" not in df.columns:
             raise ValueError("DataFrame lacks 'chosen_item' column.")
         df = df.dropna(subset=["rt"]).copy()
-        # df["chosen_item"] = df["chosen_item"].replace({-1: 0})
+        df["chosen_item"] = df["chosen_item"].replace({-1: 0})
         valid = df[df["chosen_item"].isin([0, 1])]
         if valid.empty:
             mean_rate = np.nan
         else:
             mean_rate = float((valid["chosen_item"] == 1).mean())
-            rate_diff = valid.loc[valid["num_trial"] >= 24, "chosen_item"].mean() - valid.loc[valid["num_trial"] < 24, "chosen_item"].mean()
+            rate_diff = valid.loc[(valid["num_trial"] >= 24), "chosen_item"].mean() - valid.loc[(valid["num_trial"] < 24), "chosen_item"].mean()
 
         rows.append({"subject": subj_id, "target_choice_rate": mean_rate, "target_choice_rate_diff": rate_diff})
 
@@ -217,15 +321,6 @@ def analyze_color_accuracy_change(df: pd.DataFrame) -> pd.DataFrame:
     abs_t = work["angular_error_target"].abs()
     abs_d = work["angular_error_distractor"].abs()
 
-    def infer_choice(row):
-        if row["chosen_item"] == 1:
-            return row["target_group"]  # ターゲット色
-        if row["chosen_item"] == 0:
-            return "white" if row["target_group"] == "black" else "black"  # 反対色=ディストラクター色
-        return np.nan  # -1は除外
-
-
-    work["chosen_color"] = work.apply(infer_choice, axis=1)
     work["chosen_error"] = np.where(
         work["chosen_color"] == work["target_group"],
         work["angular_error_target"],
