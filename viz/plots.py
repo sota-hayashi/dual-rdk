@@ -3,7 +3,7 @@ import json
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, lognorm
 import statsmodels.api as sm
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -697,7 +697,8 @@ def plot_hist_with_lognormal_fit(
     bin_size: float,
     title: str = "Histogram with Gaussian Fit",
     xlabel: str = "Value",
-    ylabel: str = "Density"
+    ylabel: str = "Density",
+    save_path: str = None,
 ):
     """
     指定したデータとビン幅でヒストグラムを描画し、ガウス分布をフィットして重ねる。
@@ -747,13 +748,17 @@ def plot_hist_with_lognormal_fit(
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
     ax.legend(loc="upper right", fontsize=10)
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
     plt.show()
 
 def plot_exp_obj_with_linear_fit(
     values: List[Tuple[float, float]],
     title: str = "Plot of Explanatory variable and Objective variable with Linear Fit",
     xlabel: str = "Explanatory variable",
-    ylabel: str = "Objective variable"
+    ylabel: str = "Objective variable",
+    save_path: str = None
 ):
     """
     指定したデータで散布図を描画し、線形回帰をフィットして重ねる。
@@ -765,12 +770,37 @@ def plot_exp_obj_with_linear_fit(
     x = np.array([v[0] for v in values], dtype=float)
     y = np.array([v[1] for v in values], dtype=float)
 
+    # 欠損値や無限大が含まれているとエラーになるため、有限な値のみを対象にする
+    finite_mask = np.isfinite(x) & np.isfinite(y)
+    x = x[finite_mask]
+    y = y[finite_mask]
+    original_indices = np.where(finite_mask)[0] # 元のリストでのインデックスを保持
+
+    if len(x) < 2:
+        print("Not enough finite data for plotting.")
+        return
+
     X = sm.add_constant(x)
     model = sm.OLS(y, X)
     fit = model.fit(disp=False)
     slope = fit.params[1] if len(fit.params) > 1 else np.nan
     pval = fit.pvalues[1] if len(fit.pvalues) > 1 else np.nan
     print(f"Linear fit results: slope={slope:.4f}, p-value={pval:.4f}")
+
+    # 信頼区間の上限と下限を取得
+    predictions = fit.get_prediction(X)
+    ci = predictions.conf_int(alpha=0.05) # alpha=0.05 で 95%信頼区間
+    lower_bound = ci[:, 0]
+    upper_bound = ci[:, 1]
+
+    # yの値が信頼区間内にあるかどうかを判定
+    is_within_ci = (y >= lower_bound) & (y <= upper_bound)
+    
+    # 信頼区間内にあるデータの元のインデックスを取得
+    indices_within_ci = original_indices[is_within_ci]
+    
+    # print(f"Indices of data points within the 95% confidence interval:")
+    # print(indices_within_ci)
 
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -788,4 +818,33 @@ def plot_exp_obj_with_linear_fit(
         fontsize=11,
         bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray")
     )
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
+    plt.show()
+
+
+def qqplot_lognormal(arr):
+    arr = np.asarray(arr, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    arr = arr[arr > 0]
+
+    log_arr = np.log(arr)
+    mu = log_arr.mean()
+    sigma = log_arr.std(ddof=1)
+
+    # 理論分位点と標本分位点
+    sorted_arr = np.sort(arr)
+    n = len(sorted_arr)
+    probs = (np.arange(1, n + 1) - 0.5) / n
+    theoretical = lognorm.ppf(probs, s=sigma, scale=np.exp(mu))
+
+    plt.figure(figsize=(6, 6))
+    plt.scatter(theoretical, sorted_arr, alpha=0.7)
+    min_v = min(theoretical.min(), sorted_arr.min())
+    max_v = max(theoretical.max(), sorted_arr.max())
+    plt.plot([min_v, max_v], [min_v, max_v], 'r--')
+    plt.xlabel("Theoretical quantiles")
+    plt.ylabel("Sample quantiles")
+    plt.title("Q-Q plot for log-normal fit")
     plt.show()
