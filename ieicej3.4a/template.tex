@@ -198,10 +198,10 @@
 
 %% 4. 「技術研究報告」
 \documentclass[technicalreport]{ieicej}
-%\usepackage[dvipdfmx]{graphicx,xcolor}
+\usepackage[dvipdfmx]{graphicx,xcolor}
 %%\usepackage[dvips]{graphicx}
 \usepackage[fleqn]{amsmath}
-%\usepackage{amsthm}?
+% \usepackage{amsthm}
 \usepackage{newtxtext}% 英数字フォントの設定を変更しないでください
 \usepackage[varg]{newtxmath}% % 英数字フォントの設定を変更しないでください
 %\usepackage{amssymb}
@@ -227,7 +227,7 @@
 人は，環境に潜む規則性を意識せずとも自然に習得する能力を有しており，これは暗黙的学習と呼ばれる．
 暗黙的学習の進行過程には顕著な個人差が認められるが，その要因については十分に解明されていない．
 本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすと仮定し，集中度を反映する指標である反応時間の変動と暗黙的学習の関係を検討した．
-ヒトを対象とした行動実験（N=53）では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
+ヒトを対象とした行動実験（N=56）では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
 実験参加者は，白か黒のどちらかを選択し，その色のドット群の運動方向を報告し，選択ドットと運動方向誤差に応じて報酬を得た．
 ドット群の選択には暗黙的な報酬構造が設定されており，参加者はこの報酬構造を学習することで獲得報酬を最大化することが可能であった．
 分析の結果，反応時間の変動が大きい参加者群において，課題の進行にともない高報酬なドット群を選択する割合が有意に増加することが確認された．
@@ -240,6 +240,15 @@
 \end{jkeyword}
 \begin{eabstract}
 %英文アブストラクト
+Human beings are capable of acquiring regularities embedded in the environment naturally, even without conscious awareness; this ability is referred to as implicit learning.
+Although marked individual differences have been observed in the process of implicit learning, the factors underlying these differences remain insufficiently understood.
+In this study, we hypothesized that individual differences in concentration (attentional state) influence the progression of learning, and investigated the relationship between implicit learning and reaction time variability, an index reflecting concentration.
+In a behavioral experiment involving human participants (N = 56), we used random dot kinematogram stimuli in which white and black dot clouds moved in different directions.
+Participants were asked to choose either the white or black dots, report the direction of motion of the chosen dot cloud, and received rewards according to the selected dot color and the angular error in their motion report.
+An implicit reward structure was assigned to the choice of dot color, such that participants could maximize their reward by learning this hidden structure.
+The analysis revealed that, among participants with greater reaction time variability, the proportion of choosing the high-reward dot cloud increased significantly as the task progressed.
+Reaction time variability is thought to reflect transitions between attentive and inattentive states.
+Therefore, these findings suggest that dynamic changes in attentional state may be a factor that governs the progression of implicit learning.
 \end{eabstract}
 \begin{ekeyword}
 %英文キーワード
@@ -247,12 +256,195 @@
 \maketitle
 
 \section{はじめに}
-林奏汰
+人は，環境に潜む規則性を意識せずとも自然に習得する能力を有している．
+これは暗黙的学習と呼ばれ，人の柔軟な情報処理の基盤をなすメカニズムの一つとみなされている~\cite{simor2025mind}．
+暗黙的学習の一例として，人は言語の文法を明示的に教わらずとも母語話者として習得することが挙げられる~\cite{simor2025mind}．
+ただし，これらの暗黙的な規則性の習得の過程は，個人ごとで大きく異なることが示されている~\cite{simor2025mind}．
 
-%\bibliographystyle{sieicej}
-%\bibliography{myrefs}
-\begin{thebibliography}{97}% 文献数が10未満の時 {9}
-\bibitem{}
-\end{thebibliography}
+従来の研究では，暗黙的学習の個人差を評価する指標として，反応時間の平均値が広く用いられてきた~\cite{perruchet2006implicit}．
+例えば，Perruchetら~\cite{perruchet2006implicit}は，系列学習課題において課題前半と後半における反応時間の平均値の差を学習の進行指標として用いている．
+しかしこのアプローチは，各時点における反応時間が安定しているか，あるいはその変化が単調であるという暗黙の仮定に基づいている．
+Hultschら~\cite{hultsch2011intraindividual}は，パフォーマンスの平均値に着目する研究アプローチはこうした安定性の仮定に基づいており，パフォーマンスの変動，特に個人内変動が重要な情報を持つ可能性を見落とすと指摘している．
+この観点を被験者内の時系列変動に拡張すれば，反応時間の変動パターンそのものが学習進行の個人差を反映している可能性が考えられる．
+しかし，反応時間の変動と暗黙的学習の進行の関係については，これまで十分に検討されていない．
+
+本研究では，集中度（注意状態）の個人差が暗黙的学習の進行に影響を及ぼすと仮定し，集中度の指標として反応時間の変動と暗黙的学習の関係を検討する．
+注意状態は反応時間に影響を与える一方，精度には影響しないことが示されており，反応時間は注意状態の鋭敏な指標となりうる~\cite{prinzmetal2005}．
+また，持続的注意を要する課題において，人の注意状態は集中と散漫の間を動的に遷移する~\cite{simor2025mind}．
+したがって，反応時間の試行間変動はこの注意状態の時間的遷移を反映していると考えられる．
+反応時間の変動を捉える指標としては，変動係数（coefficient of variation: CV）を用いる．
+
+暗黙的学習を捉える実験として，ヒトを対象に行動実験を実施した．
+実験では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
+実験参加者は，白か黒のどちらかを選択し，その色のドット群の運動方向を報告し，選択ドットと運動方向誤差に応じて報酬を得た．
+ドット群の選択には暗黙的な報酬構造が設定されており，参加者はこの報酬構造を学習することで獲得報酬を最大化することが可能であった．
+
+分析の結果，反応時間の変動が大きい参加者は，課題の進行にともない高報酬なドット群を選択する割合が有意に増加することが確認された．
+さらに，反応時間の変動が大きい参加者は，平均的な報告角度誤差が有意に大きい傾向が認められた．
+反応時間の変動は注意状態と散漫状態の遷移を反映していると考えられる．
+したがって，本結果は集中状態の動的な変化が暗黙的学習の進行を規定する要因になり得ることを示唆している．
+
+\section{実験}
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.2\textwidth]{../fig/rdk.pdf}
+    \caption{ランダムドットキネマトグラム刺激の例．}
+    \label{fig:rdk_stimulus}
+\end{figure*}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=1.0\textwidth]{../fig/dual-rdk-procedure.pdf}
+    \caption{実験の1回の試行の流れ．}
+    \label{fig:experiment_procedure}
+\end{figure*}
+\subsection{環境}
+実験は，JsPsych v2.0.0を用いて作成した．
+
+\subsection{実験参加者}
+実験参加者は合計70名で，オンライン実験ツールであるProlific~\cite{simor2025mind}を用いて募集した．
+
+\subsection{実験手順}
+本節では，実験の手順について説明する．
+実験は16試行の練習セッションと72試行の本番セッションで構成された．
+実験の1回の試行を図~\ref{fig:experiment_procedure}に示す．
+1試行は，固視点の提示，色の異なる2つのランダムドットキネマトグラム（randomdotkinematogram: RDK）刺激の同時提示，方向の回答フェーズ，そして報酬フェーズで構成された．
+
+実験参加者には，回答の対象（ターゲット）となるのは，ドット数の多い方のドット群の運動方向であると伝え，ドット数が多いと感じたドット群の方向を報告するよう求めた．
+各試行において，参加者は選択したドット群の運動方向に対してバーを回転し合わせるように求め，ターゲット刺激に対する角度誤差に応じて報酬を与えた．
+参加者には，最終的な獲得報酬に応じて実験終了後に報酬が支払われることを伝えた．
+
+\subsubsection{練習セッション}
+練習セッションは16試行で構成され，バーの操作に慣れてもらうという目的のもと，ドット数と方向はランダムに決定し，2つの色の異なるRDK刺激を同時表示した．
+つまり，練習セッションではターゲット刺激とディストラクター刺激が明示的に示され，報酬構造は存在しなかった．
+
+\subsubsection{本番セッション}
+% 本番セッションは72試行で構成され，前半48試行はlearningフェーズ，後半24試行はawarenessフェーズとした．
+% learningフェーズはターゲットを学習したかどうか，awarenessフェーズはその学習が意識的かどうかを解析することを目的とした．
+本番セッションは48試行で構成され，各試行においてドット数が同数である2つの色の異なるRDK刺激を同時表示した．
+ただ，ドット群が運動する方向は2色のドット群でそれぞれ異なり，その運動方向に応じて報酬が変化するように設定した．
+つまり，本番セッションでは，参加者はドット数が多いと感じた方のドット群の運動方向を報告したが，実際にはドット数は同数で報酬構造が存在した．
+
+% 一方で，awarenessフェーズにおける刺激は，learningフェーズにおける刺激のターゲットとディストラクターを入れ替えたものである．
+% つまり，learningフェーズでは図~\ref{fig:stimuli}の報酬構造を極座標の角度方向に$\pi$回転した場合の刺激が生成される．
+
+
+\subsection{報酬構造}
+本節では，実験の本番セッションにおける報酬構造について説明する．
+本番セッションの各試行における刺激は，ターゲット刺激（高報酬刺激）とディストラクター刺激（低報酬刺激）で構成された．
+つまり，ターゲット刺激が白色ドット群になる場合は，ディストラクター刺激は黒色ドット群となり，逆にターゲット刺激が黒色ドット群になる場合は，ディストラクター刺激は白色ドット群となる．
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../fig/learning-stimuli.pdf}
+    \caption{本番セッションにおける2種類の刺激のペア，およびドット群の運動方向の範囲\\
+    右側のペアの場合は白色ドット群がターゲット，黒色ドット群がディストラクターとなる\\
+    左側は黒色ドット群がターゲット，白色ドット群がディストラクターとなる}
+    \label{fig:stimuli}
+\end{figure}
+図~\ref{fig:stimuli}に，本番セッションにおける2種類の刺激のペア，そしてそれぞれのドット群の運動しうる方向範囲を示す．
+まず，右側のペアでは白色がターゲット，黒色がディストラクターで，逆に左側のペアでは黒色がターゲットで白色がディストラクターとなっている．
+それぞれの刺激の発生範囲は$\pi/4$で，またそれが$\pi/4$間隔で極座標の角度方向に並んでいる．
+
+各試行の報酬は，回答角度がターゲットの方向角度に一致すると10点，$\pi/4$以上離れると0点になるように調整した．
+これを実現するため，2つのドット群のなす角度が常に$\pi/2$以上になるように制限を加えた．
+
+実験が終了するまで約15分を要した．
+
+\subsection{分析方法}
+ここでは，反応時間の変動の計算方法，除外する参加者データについて説明する．
+反応時間の変動は，反応時間の標準偏差を平均で割った値（coefficient of variation: CV）を指標として用いた．
+式で表すと以下のようになる．
+\begin{align}
+    \text{CV}_\text{RT} = \frac{\sigma_{\text{RT}}}{\mu_{\text{RT}}}
+\end{align}
+ここで，$\sigma_{\text{RT}}$は反応時間の標準偏差，$\mu_{\text{RT}}$は反応時間の平均である．
+この指標は，反応時間のばらつきを平均に対する割合で表すものであり，個人の注意状態の変動つまり集中度を反映していると考えられる．
+
+本研究では，単純な報酬構造の学習の進行を捉えることを目的としたため，片方の色を選択する偏りが大きい参加者のデータ，そして実験に関連のない回答（ターゲット/ディストラクター以外を回答）が多い参加者のデータは除外した．
+具体的には，片方の色を選択する割合が80~\%以上の参加者，そして実験に関連のない回答が30~\%を超える参加者を除外することとした．
+さらに，本研究では，変動係数が大きすぎる参加者は，注意状態の変動が極端であると考えられるため，分析から除外することとした．
+% \cite{klein2006intra}は，個人内変動の指標がグループ識別に貢献するとしていて，これを参考視すると，変動係数が全体の0.9分位数以上の参加者は，注意状態の変動が極端であると考えられるため，分析から除外することとした．みたいな
+具体的には，変動係数が全体の0.9分位数以上の参加者を除外することとした．
+
+これらの基準に基づいて，最終的に56名の参加者のデータを分析に用いた．
+
+\section{結果}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=1.0\linewidth]{../fig/rt_histogram_lognormal_fit.pdf}
+    \caption{全体における反応時間のヒストグラム分布．}
+    \label{fig:rt_histogram}
+\end{figure}
+まず，全体における反応時間のヒストグラム分布を図~\ref{fig:rt_histogram}に示す．
+ヒストグラムの形状は，正規分布よりも裾が重い分布であることがわかる．
+このような分布は，反応時間の分布をモデル化するためによく用いられる対数正規分布で近似することができることが知られている~\cite{simor2025mind}．
+図~\ref{fig:rt_histogram}の赤線は，対数正規分布のフィッティングの結果を示す．
+このフィッティングの結果から，本実験の反応時間の分布は対数正規分布で近似できることがわかる．
+以下では，
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=1.0\linewidth]{../fig/rt_cv_vs_minimum_angular_error.pdf}
+    \caption{反応時間の変動と最小角度誤差の平均値の関係}
+    \label{fig:cv_vs_minimum_ae}
+\end{figure}
+続いて，各参加者の反応時間の変動と，最小報告角度誤差の平均値との関係を分析した．
+最小報告角度誤差は，回答角度とターゲット/ディストラクターの方向角度のうち，誤差が小さい方を指標として用いた．
+図~\ref{fig:cv_vs_minimum_ae}は，説明変数を反応時間の変動，目的変数を最小角度誤差の平均値とした場合の線形回帰分析の結果を示す．
+この図は，反応時間の変動が大きい参加者は，平均的な報告角度誤差が有意に大きい傾向が認められることを示している．
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=1.0\linewidth]{../fig/rt_cv_vs_target_choice_rate_diff.pdf}
+    \caption{反応時間の変動とターゲット選択率の差の関係}
+    \label{fig:cv_vs_target_choice_rate_diff}
+\end{figure}
+続いて，各参加者の反応時間の変動と，課題の進行に伴うターゲット刺激の選択割合の変化との関係を分析した．
+図~\ref{fig:cv_vs_target_choice_rate_diff}は，説明変数を反応時間の変動，目的変数をターゲット選択率の差（後半のターゲット選択率から前半のターゲット選択率を引いた値）とした場合の線形回帰分析の結果を示す．
+この図は，反応時間の変動が大きい参加者は，課題の進行にともないターゲット刺激（高報酬なドット群）を選択する割合が有意に増加することを示している．
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=1.0\linewidth]{../fig/minimum_angular_error_vs_target_choice_rate_diff.pdf}
+    \caption{最小角度誤差の平均値とターゲット選択率の差の関係}
+    \label{fig:minimum_ae_vs_target_choice_rate_diff}
+\end{figure}
+これらの結果は，反応時間の変動が大きい参加者は，平均的な報告角度誤差が大きい傾向がある一方で，課題の進行にともないターゲット刺激を選択する割合が有意に増加することを示している．
+図~\ref{fig:minimum_ae_vs_target_choice_rate_diff}は，説明変数を最小角度誤差の平均値，目的変数をターゲット選択率の差とした場合の線形回帰分析の結果を示す．
+この図は，平均的な報告角度誤差とターゲット選択率の差の間には有意な線形関係がないことを示している．
+
+\section{考察}
+本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすと仮定し，集中度を反映する指標である反応時間の変動と暗黙的学習の関係を検討した．
+本研究の結果は，反応時間の変動が大きい参加者は，平均的な知覚精度が低い傾向にある一方で，課題の進行に伴うターゲット選択率の増加が大きいことを示した．
+この結果は，反応時間の揺らぎが単なる遂行低下だけでなく，学習過程の初期状態や変化量と関係する可能性を示している．
+
+まず，反応時間の変動と知覚精度の関係について考察する．
+本研究では，反応時間の変動が大きい参加者ほど平均的な報告角度誤差が大きい傾向にあることが確認された．
+この結果は，反応時間の揺らぎがタスク遂行の不安定性を反映している可能性を示している．
+実際に，反応時間の変動は持続的注意や注意の逸脱を反映する指標として用いられてきた~\cite{simor2025mind}．
+本研究の結果は，これらの知見と整合的である．
+
+次に，反応時間の変動と学習過程の関係について考察する．
+反応時間の変動が大きい参加者は，課題の進行にともないターゲット刺激を選択する割合が有意に増加することが確認された．
+この結果は，反応時間の揺らぎが学習の進行に関連している可能性を示している．
+しかし，反応時間の変動とタスク前半のターゲット選択率の関係を分析したところ，両者の間に負の有意な関係が認められた．
+この結果は，反応時間の変動が大きい参加者は，タスクの初期段階でターゲット刺激を選択する割合が低い傾向にあることを示している．
+そのため，タスク前半から後半にかけて選択割合の差分が大きくなっている可能性がある．
+さらに，タスク後半における選択割合と反応時間の変動には有意な関係が確認されなかったことから，反応時間の変動は学習能力そのものよりも，学習過程の初期条件や変化量と関係している可能性がある．
+
+一方で，平均的な報告角度誤差とターゲット選択率の差の間には有意な関係は認められなかった（図~\ref{fig:minimum_ae_vs_target_choice_rate_diff}）．
+この結果は，報告誤差そのものと学習差分は直接的な関係がない可能性を示している．
+したがって，反応時間の変動は単なる知覚ノイズではなく，刺激選択や方略の変化を含むより高次な安定性を反映している可能性がある．
+
+本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすという仮説を部分的に支持した．
+ただし，現時点の結果は学習能力そのものよりも，学習過程の初期条件や進行の仕方に関する個人差を表している可能性がある．
+反応時間の変動を注意状態の直接的な指標とみなすことには限界があるため，今後の研究では，trial-levelの変動やより直接的な注意指標も組み合わせて検討する必要がある．
+
+\bibliographystyle{sieicej}
+\bibliography{myrefs}
+% \begin{thebibliography}{97}% 文献数が10未満の時 {9}
+% \bibitem{}
+% \end{thebibliography}
 
 \end{document}
