@@ -8,3 +8,5 @@ PRACTICE_ROWS = 32
 ROWS_PER_SESSION = 96
 TRIALS_PER_SESSION = 48
 ROWS_FOR_AWARENESS = 48
+
+GAUSSIAN_HMM_SUMMARY_PATH = Path("./hmm_summary/gaussian_hmm_summary.csv")

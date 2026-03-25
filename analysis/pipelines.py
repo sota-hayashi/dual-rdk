@@ -3,7 +3,7 @@ from common.config import DATA_PATH, SUMMARY_PATH
 from io_data.load import load_and_prepare, load_all_concatenated
 from features.behavior import relabel_hmm_states
 from analysis.pipelines_behavior import run_behavior, get_subjects_by_behavior_data
-from analysis.pipelines_hmm import run_hmm, get_subjects_by_hmm_category
+from analysis.pipelines_hmm import run_hmm, run_general_hmm, get_subjects_by_hmm_category, run_gaussian_hmm_pipeline
 from viz.plots import plot_logistic_regression_per_subject
 
 
@@ -23,7 +23,7 @@ def run_default():
     group5 = "on-off-cycling"
     categories = [group4]
 
-    subjects_hmm, _ = run_hmm(all_data_learning=all_data_learning, categories=categories, train=False)
+    # subjects_hmm, _ = run_general_hmm(all_data_learning=all_data_learning, categories=categories, train=False)
 
     # 3) 行動基準で被験者を抽出
     subjects_behavior_on, subjects_behavior_off = get_subjects_by_behavior_data(all_data_learning, threshold=1)
@@ -36,4 +36,5 @@ def run_default():
             Path("data_online_experiment"),
             subjects_include=subjects
         )
-    run_behavior(all_data_learning, all_data_awareness, subjects_behavior_on, subjects_behavior_off)
+    hmm_df = run_hmm(all_data_learning=all_data_learning, train=False)
+    run_behavior(all_data_learning, all_data_awareness, subjects_behavior_on, subjects_behavior_off, hmm_df=hmm_df)

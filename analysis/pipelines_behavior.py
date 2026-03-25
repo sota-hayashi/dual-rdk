@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp, mannwhitneyu
 from io_data.utils import combine_subjects
+from functools import reduce
 
 from features.behavior import (
     compute_target_choice_prob_by_task_irrelevant_switch,
@@ -76,7 +77,7 @@ def get_subjects_by_behavior_data(
     return subjects_behavior_1, subjects_behavior_2
 
 
-def run_behavior(all_data_learning, all_data_awareness=None, subjects_behavior_on=None, subjects_behavior_off=None):
+def run_behavior(all_data_learning, all_data_awareness=None, subjects_behavior_on=None, subjects_behavior_off=None, hmm_df=None):
     # 0) 確認したい参加者データはここで参照
     _, df_learning, df_awareness = load_and_prepare(DATA_PATH)
     # plot_logistic_regression_per_subject(df_learning)
@@ -91,6 +92,10 @@ def run_behavior(all_data_learning, all_data_awareness=None, subjects_behavior_o
     # print(df_learning.loc[df_learning["target_group"] == "white", ["num_trial", "chosen_item", "angular_error_target", "angular_error_distractor"]].reset_index(drop=True))
 
     behavioral_df =  cancatenate_necessary_behavioral_df(all_data_learning)
+    data_frames = [behavioral_df]
+    if hmm_df is not None:
+        data_frames.append(hmm_df)
+    all_df = reduce(lambda left, right: pd.merge(left, right, on='subject', how='inner'), data_frames)
     # target_choice_prob_by_switch_df = compute_target_choice_prob_by_task_irrelevant_switch(all_data_learning)
     # plot_exploit_target_prob_by_switch(target_choice_prob_by_switch_df)
     # print(t_test_learning_rate_from_switch_probs(target_choice_prob_by_switch_df))
@@ -166,35 +171,36 @@ def run_behavior(all_data_learning, all_data_awareness=None, subjects_behavior_o
     # # print("\nSlope of AE over trials per subject:")
     # # print(slope_df)
 
-    # combined_variances = []
-    # for index, row in behavioral_df.iterrows():
-    #     subj_id = row["subject"]
-    #     task_relevant_choice_rate = row["task_relevant_choice_rate"] if "task_relevant_choice_rate" in row else np.nan
-    #     target_choice_rate = row["target_choice_rate"] if "target_choice_rate" in row else np.nan
-    #     target_choice_rate_diff = row["target_choice_rate_diff"] if "target_choice_rate_diff" in row else np.nan
-    #     target_angular_error = row["mean_target_angular_error"] if "mean_target_angular_error" in row else np.nan
-    #     target_angular_error_diff = row["target_angular_error_diff"] if "target_angular_error_diff" in row else np.nan
-    #     distractor_angular_error = row["mean_distractor_angular_error"] if "mean_distractor_angular_error" in row else np.nan
-    #     angular_error = row["mean_min_angular_error"] if "mean_min_angular_error" in row else np.nan
-    #     angular_error_diff = row["angular_error_diff"] if "angular_error_diff" in row else np.nan
-    #     reward_points = row["mean_reward_points"] if "mean_reward_points" in row else np.nan
-    #     reward_points_diff = row["mean_reward_points_diff"] if "mean_reward_points_diff" in row else np.nan
-    #     # if slope < 0:
-    #     #     continue
-    #     rt_mean = row["rt_mean"] if "rt_mean" in row else np.nan
-    #     rt_std = row["rt_std"] if "rt_std" in row else np.nan
-    #     rt_cv = row["rt_cv"] if "rt_cv" in row else np.nan
-    #     min_ae_std = row["min_ae_std"] if "min_ae_std" in row else np.nan
-    #     win_stay_rate = row["win_stay_rate"] if "win_stay_rate" in row else np.nan
-    #     lose_switch_rate = row["lose_switch_rate"] if "lose_switch_rate" in row else np.nan
-    #     combined_variances.append((rt_cv, target_choice_rate_diff))
-    # plot_exp_obj_with_linear_fit(
-    #     combined_variances,
-    #     title="RT Coefficient of Variation vs Target Choice Rate Diff (second - first)", 
-    #     xlabel="RT Coefficient of Variation", 
-    #     ylabel="Target Choice Rate Diff (second - first)",
-    #     # save_path="./fig/rt_cv_vs_minimum_angular_error.pdf"
-    #     )
+    combined_variances = []
+    for index, row in all_df.iterrows():
+        subj_id = row["subject"]
+        task_relevant_choice_rate = row["task_relevant_choice_rate"] if "task_relevant_choice_rate" in row else np.nan
+        target_choice_rate = row["target_choice_rate"] if "target_choice_rate" in row else np.nan
+        target_choice_rate_diff = row["target_choice_rate_diff"] if "target_choice_rate_diff" in row else np.nan
+        target_angular_error = row["mean_target_angular_error"] if "mean_target_angular_error" in row else np.nan
+        target_angular_error_diff = row["target_angular_error_diff"] if "target_angular_error_diff" in row else np.nan
+        distractor_angular_error = row["mean_distractor_angular_error"] if "mean_distractor_angular_error" in row else np.nan
+        angular_error = row["mean_min_angular_error"] if "mean_min_angular_error" in row else np.nan
+        angular_error_diff = row["angular_error_diff"] if "angular_error_diff" in row else np.nan
+        reward_points = row["mean_reward_points"] if "mean_reward_points" in row else np.nan
+        reward_points_diff = row["mean_reward_points_diff"] if "mean_reward_points_diff" in row else np.nan
+        # if slope < 0:
+        #     continue
+        rt_mean = row["rt_mean"] if "rt_mean" in row else np.nan
+        rt_std = row["rt_std"] if "rt_std" in row else np.nan
+        rt_cv = row["rt_cv"] if "rt_cv" in row else np.nan
+        min_ae_std = row["min_ae_std"] if "min_ae_std" in row else np.nan
+        win_stay_rate = row["win_stay_rate"] if "win_stay_rate" in row else np.nan
+        lose_switch_rate = row["lose_switch_rate"] if "lose_switch_rate" in row else np.nan
+        off_rate = row["off_rate"] if "off_rate" in row else np.nan
+        combined_variances.append((off_rate, target_angular_error))
+    plot_exp_obj_with_linear_fit(
+        combined_variances,
+        title="Off Rate vs Target Angular Error", 
+        xlabel="Off Rate", 
+        ylabel="Target Angular Error",
+        # save_path="./fig/rt_cv_vs_minimum_angular_error.pdf"
+        )
 
     t_test_results = t_test_rt_difference_between_target_distractor(all_data_learning)
     print("\nT-test: RT difference between target and distractor choices")

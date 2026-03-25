@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import json
 import ast
 
@@ -355,6 +355,52 @@ def load_hmm_summary(
     df['state_labels'] = df['state_labels'].apply(ast.literal_eval)
 
     return df
+
+def load_gaussian_hmm_summary(summary_path: Path) -> List[Dict]:
+    """
+    Gaussian HMM の結果CSVを読み込み、run_gaussian_hmm() と同じ形式の
+    List[Dict] として返す。
+
+    Parameters
+    ----------
+    summary_path : Path
+        save_gaussian_hmm_results() で保存したCSVのパス
+
+    Returns
+    -------
+    List[Dict]
+        各要素は以下のキーを持つ辞書:
+            participant_id  : str
+            n_trials        : int
+            viterbi_states  : np.ndarray (n_trials,)
+            means           : np.ndarray (2, 1)
+            covars          : np.ndarray (2, 1, 1)
+            transmat        : np.ndarray (2, 2)
+            state_labels    : dict  {0: "engaged", 1: "disengaged"}
+            log_likelihood  : float
+    """
+    df = pd.read_csv(summary_path)
+
+    required = ["participant_id", "n_trials", "viterbi_states", "means", "covars",
+                "transmat", "state_labels", "log_likelihood"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Gaussian HMM summary missing columns: {missing}")
+
+    results = []
+    for _, row in df.iterrows():
+        results.append({
+            "participant_id": row["participant_id"],
+            "n_trials": int(row["n_trials"]),
+            "viterbi_states": np.array(json.loads(row["viterbi_states"]), dtype=int),
+            "means": np.array(json.loads(row["means"])),
+            "covars": np.array(json.loads(row["covars"])),
+            "transmat": np.array(json.loads(row["transmat"])),
+            "state_labels": json.loads(row["state_labels"]),
+            "log_likelihood": float(row["log_likelihood"]),
+        })
+    return results
+
 
 def load_categorized_subjects(
     summary_path: Path,
