@@ -219,18 +219,18 @@ def run_behavior(all_data_learning, all_data_awareness=None, subjects_behavior_o
     # )
 
     # # # Example: AE variance histogram
-    # combined = combine_subjects(all_data_learning)
-    # combined = combined.dropna(subset=["rt"]).copy()
-    # rt_values = combined["rt"].tolist()
-    # rt_values = np.log(rt_values) 
-    # target_choice_rate_list = behavioral_df["task_relevant_choice_rate"].tolist()
-    # plot_hist_with_lognormal_fit(
-    #     rt_values,
-    #     bin_size=0.12,
-    #     xlabel="Reaction Time",
-    #     title="Histogram of Reaction Time Across Subjects",
-    #     # save_path="./fig/rt_histgram_lognormal_fit.pdf"
-    # )
+    combined = combine_subjects(all_data_learning)
+    combined = combined.dropna(subset=["rt"]).copy()
+    rt_values = combined["rt"].tolist()
+    rt_values = np.log(rt_values) 
+    target_choice_rate_list = behavioral_df["task_relevant_choice_rate"].tolist()
+    plot_hist_with_lognormal_fit(
+        rt_values,
+        bin_size=0.12,
+        xlabel="Reaction Time",
+        title="Histogram of Reaction Time Across Subjects",
+        # save_path="./fig/rt_histgram_lognormal_fit.pdf"
+    )
 
     # qqplot_lognormal(variance_list)
     # results = evaluate_lognormal_fit(variance_list)
