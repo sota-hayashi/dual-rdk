@@ -1,0 +1,96 @@
+\documentclass[dvipdfmx]{jsarticle}
+\usepackage{geometry}
+\geometry{a4paper, top=1.0cm, left=2.5cm, right=2.5cm, bottom=1cm, includefoot}
+
+\usepackage[dvipdfmx]{graphicx, xcolor}
+\usepackage{here}
+\usepackage{color}
+\usepackage{amsmath, amssymb, bm}
+\usepackage{amsthm}
+\usepackage{cases}
+\usepackage{cite}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{multirow}
+\usepackage{bbm}
+\usepackage{ascmac}
+\usepackage{arydshln}
+\usepackage[table]{xcolor}
+\usepackage{float}
+\usepackage{fancybox}
+\usepackage{caption}
+\usepackage{mdframed}
+\usepackage{hyperref}
+\usepackage{algorithm,algorithmic}
+\usepackage{wrapfig}
+\usepackage{url}
+\usepackage{indentfirst}
+\usepackage{stmaryrd}
+\usepackage{braket}
+\usepackage{booktabs}
+\usepackage{siunitx} % 数値列の整列に便利
+\usepackage{mathcomp}
+\usepackage{subfig}
+
+
+\graphicspath{{fig/}}
+%\usepackage{color}
+\captionsetup{justification=centering}
+
+\newtheorem{theorem}{定理}
+\newtheorem{lemma}[theorem]{補題}
+\renewcommand{\figurename}{図}
+\renewcommand{\abstractname}{Abstract}
+\newcommand{\la}{\lambda}
+\newcommand{\li}{\lambda_i}
+\newcommand{\argmax}{\mathop{\rm arg~max}\limits}
+\newcommand{\argmin}{\mathop{\rm arg~min}\limits}
+
+\newcommand{\ds}{\displaystyle}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\one}{\mathbbm{1}}
+\newcommand{\bb}{\mathbb{R}}
+
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+\input{macros}
+
+\title{進捗報告}
+\author{林 奏汰}
+\date{2026/4/10}
+
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+人は，環境に潜む規則性を意識せずとも自然に習得する能力を有しており，これは暗黙的学習と呼ばれる．
+暗黙的学習の進行過程には顕著な個人差が認められるが，その要因については十分に解明されていない．
+本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすと仮定し，集中度を反映する指標である反応時間の変動と暗黙的学習の関係を検討した．
+ヒトを対象とした行動実験（N=54）では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
+実験参加者は，白か黒のどちらかを選択し，その色のドット群の運動方向を報告し，選択ドットと運動方向誤差に応じて報酬を得た．
+ドット群の選択には暗黙的な報酬構造が設定されており，参加者はこの報酬構造を学習することで獲得報酬を最大化することが可能であった．
+分析の結果，反応時間の変動が大きい参加者群において，課題の進行にともない高報酬なドット群を選択する割合が有意に増加することが確認された．
+反応時間の変動は注意状態と散漫状態の遷移を反映していると考えられる．
+したがって，本結果は集中状態の動的な変化が暗黙的学習の進行を規定する要因になり得ることを示唆している．
+\end{abstract}
+
+\section{イントロダクション}
+人は，環境に潜む規則性を意識せずとも自然に習得する能力を有しており，これは暗黙的学習と呼ばれる．
+暗黙的学習の進行過程には顕著な個人差が認められるが，その要因については十分に解明されていない．
+本研究では，集中度（注意状態）の個人差が学習の進行に影響を及ぼすと仮定し，集中度を反映する指標である反応時間の変動と暗黙的学習の関係を検討した．
+ヒトを対象とした行動実験（N=54）では，白・黒のドット群がそれぞれ異なる方向に運動するランダムドットキネマトグラム刺激を用いた．
+実験参加者は，白か黒のどちらかを選択し，その色のドット群の運動方向を報告し，選択ドットと運動方向誤差に応じて報酬を得た．
+ドット群の選択には暗黙的な報酬構造が設定されており，参加者はこの報酬構造を学習することで獲得報酬を最大化することが可能であった．
+分析の結果，反応時間の変動が大きい参加者群において，課題の進行にともない高報酬なドット群を選択する割合が有意に増加することが確認された．
+反応時間の変動は注意状態と散漫状態の遷移を反映していると考えられる．
+したがって，本結果は集中状態の動的な変化が暗黙的学習の進行を規定する要因になり得ることを示唆している．~\cite{anderson2011value}．．
+\section{結論}
+したがって，本結果は集中状態の動的な変化が暗黙的学習の進行を規定する要因になり得ることを示唆している
+
+\clearpage
+\bibliographystyle{unsrt}
+\bibliography{myrefs}
+
+\end{document}
