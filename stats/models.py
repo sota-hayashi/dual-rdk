@@ -1,9 +1,10 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Literal, Optional, Union
 import warnings
 import json
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import statsmodels.formula.api as smf
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 import statsmodels.api as sm
@@ -11,6 +12,10 @@ from sklearn.linear_model import LogisticRegression
 
 from io_data.utils import combine_subjects
 from common.config import TRIALS_PER_SESSION
+from stats.q_learning_bayesian import fit_q_learning_bayesian
+from stats.q_learning_map import fit_q_learning_map
+from stats.q_learning_hierarchical_bayesian import fit_q_learning_hierarchical_bayesian
+from stats.rw_hierarchical_bayesian import fit_rw_hierarchical_bayesian
 
 
 def _map_chosen_item(series: pd.Series) -> np.ndarray:
@@ -386,3 +391,325 @@ def linear_regression(
                 "model": result
             }
     return results
+
+def run_q_learning(
+    method: Literal["map", "bayesian", "hierarchical_bayesian"] = "hierarchical_bayesian",
+    fit: bool = True,
+    concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
+    result_dir: str = "results/q_learning",
+    # --- MAP固有パラメータ ---
+    n_alpha_grid: int = 5,
+    n_beta_grid: int = 5,
+    # --- Bayesian固有パラメータ ---
+    nwalkers: int = 32,
+    nburn: int = 1000,
+    nsamples: int = 2000,
+    n_rhat_chains: int = 4,
+    random_seed: int = 0,
+    # --- hierarchical_bayesian 固有パラメータ ---
+    hier_nwalkers: int = None,
+    hier_nburn: int = 2000,
+    hier_nsamples: int = 4000,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict], Tuple[pd.DataFrame, pd.DataFrame, Dict]]:
+    """Q学習モデルのフィッティング実行または結果読み込み。
+
+    Parameters
+    ----------
+    method : {"map", "bayesian", "hierarchical_bayesian"}
+        推定方法。
+    fit : bool
+        True: フィッティングを実行し結果を保存。
+        False: result_dir から既存結果を読み込み。
+    concat_list : list of (str, DataFrame), optional
+        fit=True の場合に必要。各参加者の行動データ。
+    result_dir : str
+        結果の保存先・読み込み元ディレクトリ。
+    n_alpha_grid, n_beta_grid : int
+        MAP推定のグリッドサーチ分割数。
+    nwalkers, nburn, nsamples, n_rhat_chains, random_seed : int
+        ベイズ推定のMCMCパラメータ。
+    hier_nwalkers, hier_nburn, hier_nsamples : int
+        階層ベイズ推定のMCMCパラメータ。hier_nwalkers=None で自動設定。
+
+    Returns
+    -------
+    method="map" の場合:
+        pd.DataFrame — 推定結果
+    method="bayesian" の場合:
+        tuple of (pd.DataFrame, dict) — 推定結果とトレース
+    method="hierarchical_bayesian" の場合:
+        tuple of (group_results: pd.DataFrame, individual_results: pd.DataFrame, traces: dict)
+    """
+    result_dir = Path(result_dir)
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    if fit:
+        return _fit(
+            method=method,
+            concat_list=concat_list,
+            result_dir=result_dir,
+            n_alpha_grid=n_alpha_grid,
+            n_beta_grid=n_beta_grid,
+            nwalkers=nwalkers,
+            nburn=nburn,
+            nsamples=nsamples,
+            n_rhat_chains=n_rhat_chains,
+            random_seed=random_seed,
+            hier_nwalkers=hier_nwalkers,
+            hier_nburn=hier_nburn,
+            hier_nsamples=hier_nsamples,
+        )
+    else:
+        return _load(method=method, result_dir=result_dir)
+
+
+def _fit(
+    method: str,
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    result_dir: Path,
+    **kwargs,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict]]:
+    """フィッティングを実行し、結果を保存する。"""
+    if concat_list is None:
+        raise ValueError("fit=True の場合、concat_list を指定してください。")
+
+    if method == "map":
+        results_df = fit_q_learning_map(
+            concat_list,
+            n_alpha_grid=kwargs["n_alpha_grid"],
+            n_beta_grid=kwargs["n_beta_grid"],
+            output_path=str(result_dir / "map_results.csv"),
+        )
+        return results_df
+
+    elif method == "bayesian":
+        results_df, traces = fit_q_learning_bayesian(
+            concat_list,
+            nwalkers=kwargs["nwalkers"],
+            nburn=kwargs["nburn"],
+            nsamples=kwargs["nsamples"],
+            n_rhat_chains=kwargs["n_rhat_chains"],
+            random_seed=kwargs["random_seed"],
+            output_path=str(result_dir / "bayesian_results.csv"),
+        )
+        # トレースをnpzで保存
+        import numpy as np
+        np.savez(
+            result_dir / "bayesian_traces.npz",
+            subj_ids=traces["subject"],
+            alpha_samples=traces["alpha_samples"],
+            beta_samples=traces["beta_samples"],
+        )
+        return results_df, traces
+
+    elif method == "hierarchical_bayesian":
+        import numpy as np
+        group_df, ind_df, traces = fit_q_learning_hierarchical_bayesian(
+            concat_list,
+            nwalkers=kwargs["hier_nwalkers"],
+            nburn=kwargs["hier_nburn"],
+            nsamples=kwargs["hier_nsamples"],
+            n_rhat_chains=kwargs.get("n_rhat_chains", 4),
+            random_seed=kwargs.get("random_seed", 0),
+            output_path=str(result_dir / "hierarchical_bayesian_individual.csv"),
+        )
+        group_df.to_csv(result_dir / "hierarchical_bayesian_group.csv", index=False)
+        np.savez(
+            result_dir / "hierarchical_bayesian_traces.npz",
+            subj_ids=np.array(traces["subj_ids"], dtype=object),
+            alpha_samples=traces["alpha_samples"],
+            beta_samples=traces["beta_samples"],
+            mu_alpha_samples=traces["mu_alpha_samples"],
+            sigma_alpha_samples=traces["sigma_alpha_samples"],
+            mu_beta_samples=traces["mu_beta_samples"],
+            sigma_beta_samples=traces["sigma_beta_samples"],
+        )
+        return group_df, ind_df, traces
+
+    else:
+        raise ValueError(f"未知の method: {method}（'map', 'bayesian', 'hierarchical_bayesian'）")
+
+
+def _load(
+    method: str,
+    result_dir: Path,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict]]:
+    """保存済みの結果を読み込む。"""
+    if method == "map":
+        path = result_dir / "map_results.csv"
+        if not path.exists():
+            raise FileNotFoundError(f"MAP結果が見つかりません: {path}")
+        return pd.read_csv(path)
+
+    elif method == "bayesian":
+        csv_path = result_dir / "bayesian_results.csv"
+        npz_path = result_dir / "bayesian_traces.npz"
+
+        if not csv_path.exists():
+            raise FileNotFoundError(f"ベイズ推定結果が見つかりません: {csv_path}")
+
+        results_df = pd.read_csv(csv_path)
+
+        traces = None
+        if npz_path.exists():
+            import numpy as np
+            data = np.load(npz_path, allow_pickle=True)
+            traces = {
+                "subject": data["subj_ids"].tolist(),
+                "alpha_samples": data["alpha_samples"],
+                "beta_samples": data["beta_samples"],
+            }
+
+        return results_df, traces
+
+    elif method == "hierarchical_bayesian":
+        group_path = result_dir / "hierarchical_bayesian_group.csv"
+        ind_path   = result_dir / "hierarchical_bayesian_individual.csv"
+        npz_path   = result_dir / "hierarchical_bayesian_traces.npz"
+
+        if not group_path.exists():
+            raise FileNotFoundError(f"階層ベイズ集団結果が見つかりません: {group_path}")
+        if not ind_path.exists():
+            raise FileNotFoundError(f"階層ベイズ個人結果が見つかりません: {ind_path}")
+
+        group_df = pd.read_csv(group_path)
+        ind_df   = pd.read_csv(ind_path)
+
+        traces = None
+        if npz_path.exists():
+            import numpy as np
+            data = np.load(npz_path, allow_pickle=True)
+            traces = {
+                "subj_ids":           data["subj_ids"].tolist(),
+                "alpha_samples":      data["alpha_samples"],
+                "beta_samples":       data["beta_samples"],
+                "mu_alpha_samples":   data["mu_alpha_samples"],
+                "sigma_alpha_samples": data["sigma_alpha_samples"],
+                "mu_beta_samples":    data["mu_beta_samples"],
+                "sigma_beta_samples": data["sigma_beta_samples"],
+            }
+
+        return group_df, ind_df, traces
+
+    else:
+        raise ValueError(f"未知の method: {method}（'map', 'bayesian', 'hierarchical_bayesian'）")
+
+
+def run_rw_learning(
+    fit: bool = True,
+    concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
+    result_dir: str = "results/rw_learning",
+    nwalkers: int = None,
+    nburn: int = 2000,
+    nsamples: int = 4000,
+    n_rhat_chains: int = 4,
+    random_seed: int = 0,
+) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
+    """RW（Rescorla-Wagner）モデルの階層ベイズ推定実行または結果読み込み。
+
+    Parameters
+    ----------
+    fit : bool
+        True: フィッティングを実行し結果を保存。
+        False: result_dir から既存結果を読み込み。
+    concat_list : list of (str, DataFrame), optional
+        fit=True の場合に必要。各参加者の行動データ。
+        df は rt, chosen_color, reward_points カラムを含む。
+    result_dir : str
+        結果の保存先・読み込み元ディレクトリ。
+    nwalkers : int or None
+        emcee のウォーカー数。None で自動設定（max(64, 4*(4+2*N))）。
+    nburn : int
+        バーンインステップ数。
+    nsamples : int
+        バーンイン後のサンプリングステップ数。
+    n_rhat_chains : int
+        R-hat 計算のためにウォーカーを分割するグループ数。
+    random_seed : int
+        乱数シード。
+
+    Returns
+    -------
+    tuple of (group_results: pd.DataFrame, individual_results: pd.DataFrame, traces: dict)
+    """
+    result_dir = Path(result_dir)
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    if fit:
+        return _fit_rw(
+            concat_list=concat_list,
+            result_dir=result_dir,
+            nwalkers=nwalkers,
+            nburn=nburn,
+            nsamples=nsamples,
+            n_rhat_chains=n_rhat_chains,
+            random_seed=random_seed,
+        )
+    else:
+        return _load_rw(result_dir=result_dir)
+
+
+def _fit_rw(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    result_dir: Path,
+    nwalkers: int,
+    nburn: int,
+    nsamples: int,
+    n_rhat_chains: int,
+    random_seed: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
+    """RW モデルのフィッティングを実行し、結果を保存する。"""
+    if concat_list is None:
+        raise ValueError("fit=True の場合、concat_list を指定してください。")
+
+    group_df, ind_df, traces = fit_rw_hierarchical_bayesian(
+        concat_list,
+        nwalkers=nwalkers,
+        nburn=nburn,
+        nsamples=nsamples,
+        n_rhat_chains=n_rhat_chains,
+        random_seed=random_seed,
+        output_path=str(result_dir / "rw_individual.csv"),
+    )
+    group_df.to_csv(result_dir / "rw_group.csv", index=False)
+    np.savez(
+        result_dir / "rw_traces.npz",
+        subj_ids=np.array(traces["subj_ids"], dtype=object),
+        alpha_samples=traces["alpha_samples"],
+        beta_samples=traces["beta_samples"],
+        mu_alpha_samples=traces["mu_alpha_samples"],
+        sigma_alpha_samples=traces["sigma_alpha_samples"],
+        mu_beta_samples=traces["mu_beta_samples"],
+        sigma_beta_samples=traces["sigma_beta_samples"],
+    )
+    return group_df, ind_df, traces
+
+
+def _load_rw(result_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
+    """保存済みのRW推定結果を読み込む。"""
+    group_path = result_dir / "rw_group.csv"
+    ind_path   = result_dir / "rw_individual.csv"
+    npz_path   = result_dir / "rw_traces.npz"
+
+    if not group_path.exists():
+        raise FileNotFoundError(f"RW集団結果が見つかりません: {group_path}")
+    if not ind_path.exists():
+        raise FileNotFoundError(f"RW個人結果が見つかりません: {ind_path}")
+
+    group_df = pd.read_csv(group_path)
+    ind_df   = pd.read_csv(ind_path)
+
+    traces = None
+    if npz_path.exists():
+        data = np.load(npz_path, allow_pickle=True)
+        traces = {
+            "subj_ids":            data["subj_ids"].tolist(),
+            "alpha_samples":       data["alpha_samples"],
+            "beta_samples":        data["beta_samples"],
+            "mu_alpha_samples":    data["mu_alpha_samples"],
+            "sigma_alpha_samples": data["sigma_alpha_samples"],
+            "mu_beta_samples":     data["mu_beta_samples"],
+            "sigma_beta_samples":  data["sigma_beta_samples"],
+        }
+
+    return group_df, ind_df, traces

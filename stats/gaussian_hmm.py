@@ -4,10 +4,12 @@ Gaussian HMM による隠れ状態推定（engaged / disengaged）
 仕様: gaussian_hmm_spec.md
 アルゴリズム: Ashwood et al. 2022, Algorithm 1 に基づく2段階fitting
 
-観測変数: abs_angular_error（絶対角度誤差、0°〜180°）
+観測変数（input_type で切り替え）:
+    "angular_error"  : abs_angular_error（絶対角度誤差、0°〜180°）
+    "reaction_time"  : log(RT)（反応時間の対数、歪み抑制のため）
 状態:
-    0 = engaged    (絶対誤差が小さい)
-    1 = disengaged (絶対誤差が大きい)
+    0 = engaged    (観測値が小さい)
+    1 = disengaged (観測値が大きい)
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -37,6 +39,8 @@ def _compute_abs_angular_error(df: pd.DataFrame) -> np.ndarray:
     -------
     np.ndarray : shape (n_valid_rows,), float
     """
+    if "rt" in df.columns:
+        df.dropna(subset=["rt"], inplace=True)
     if "angular_error" in df.columns:
         return df["angular_error"].abs().to_numpy(dtype=float)
 
@@ -52,8 +56,36 @@ def _compute_abs_angular_error(df: pd.DataFrame) -> np.ndarray:
     )
 
 
-def _drop_na_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """angular_error 関連列の NaN 行を除去して返す。"""
+def _compute_log_reaction_time(df: pd.DataFrame) -> np.ndarray:
+    """
+    log(RT) を計算して返す。RTの歪みを抑えるために自然対数を適用する。
+
+    優先順位:
+      1. "rt" 列が存在する場合
+      2. "reaction_time" 列が存在する場合
+
+    Returns
+    -------
+    np.ndarray : shape (n_valid_rows,), float
+    """
+    if "rt" in df.columns:
+        return np.log(df["rt"].to_numpy(dtype=float))
+    if "reaction_time" in df.columns:
+        return np.log(df["reaction_time"].to_numpy(dtype=float))
+    raise ValueError(
+        "DataFrame は 'rt' 列または 'reaction_time' 列を含む必要があります。"
+    )
+
+
+def _drop_na_rows(df: pd.DataFrame, input_type: str = "angular_error") -> pd.DataFrame:
+    """入力種別に応じた関連列の NaN 行を除去して返す。"""
+    if input_type == "reaction_time":
+        if "rt" in df.columns:
+            return df.dropna(subset=["rt"]).copy()
+        if "reaction_time" in df.columns:
+            return df.dropna(subset=["reaction_time"]).copy()
+        raise ValueError("rt 関連列が見当たりません。")
+    # angular_error
     if "angular_error" in df.columns:
         return df.dropna(subset=["angular_error"]).copy()
     if "angular_error_target" in df.columns and "angular_error_distractor" in df.columns:
@@ -69,7 +101,7 @@ def align_states(means: np.ndarray) -> Dict[int, int]:
     """
     グローバルモデルのμに基づいて状態ラベルを割り当てる。
 
-    abs_angular_error を観測値としているため:
+    観測値が小さいほど engaged とみなすため（angular_error・log(RT) ともに共通）:
       μが小さい状態 → engaged    (統一番号 0)
       μが大きい状態 → disengaged (統一番号 1)
 
@@ -137,6 +169,10 @@ def _fit_global_model(
             best_score = score
             best_model = model
 
+    print(f"Transition matrix of best global model:\n{best_model.transmat_}")
+    print(f"Means of best global model:\n{best_model.means_}")
+    print(f"Covariances of best global model:\n{best_model.covars_}")
+    print(f"Log-likelihood of best global model: {best_model.score(X_all, lengths=lengths)}")
     return best_model  # type: ignore[return-value]
 
 
@@ -223,12 +259,13 @@ def run_gaussian_hmm(
     n_iter: int = 200,
     tol: float = 1e-4,
     save_path: Optional[str] = None,
+    input_type: str = "angular_error",
 ) -> List[Dict]:
     """
     Gaussian HMM を全参加者に対して2段階fittingで実行する。
 
     アルゴリズム（仕様書 §4 全体フロー）:
-      Step 1: データ準備（abs_angular_error 計算、shapes 整形）
+      Step 1: データ準備（観測変数の計算、shapes 整形）
       Step 2: グローバルfitting（n_init 回の初期値で最大対数尤度のモデルを選択）
       Step 3: 状態ラベルのアライメント（μ小→engaged=0、μ大→disengaged=1）
       Step 4: 個人fitting（グローバルパラメータを初期値として各参加者でEM）
@@ -238,9 +275,12 @@ def run_gaussian_hmm(
     ----------
     concat_list : List[Tuple[str, pd.DataFrame]]
         (participant_id, df) のリスト。
-        各 df は以下のいずれかを含む必要がある:
+        input_type="angular_error" の場合、各 df は以下のいずれかを含む必要がある:
           - "angular_error" 列（符号付き、-180°〜180°）
           - "angular_error_target" と "angular_error_distractor" 列
+        input_type="reaction_time" の場合、各 df は以下のいずれかを含む必要がある:
+          - "rt" 列
+          - "reaction_time" 列
     n_init : int
         グローバルfittingの初期値試行回数（デフォルト: 20）
     n_iter : int
@@ -249,6 +289,10 @@ def run_gaussian_hmm(
         収束判定の閾値（デフォルト: 1e-4）
     save_path : str or None
         結果をCSVに保存するパス。None の場合は保存しない。
+        文字列中に ``{input_type}`` を含む場合、実際の input_type 値で置換される。
+        例: "results/gaussian_hmm_{input_type}.csv"
+    input_type : str
+        観測変数の種類。"angular_error"（デフォルト）または "reaction_time"。
 
     Returns
     -------
@@ -263,6 +307,13 @@ def run_gaussian_hmm(
             state_labels    : dict   {0: "engaged", 1: "disengaged"}
             log_likelihood  : float
     """
+    _VALID_INPUT_TYPES = {"angular_error", "reaction_time"}
+    if input_type not in _VALID_INPUT_TYPES:
+        raise ValueError(f"input_type は {_VALID_INPUT_TYPES} のいずれかである必要があります。got: {input_type!r}")
+
+    # save_path 内の {input_type} プレースホルダーを置換
+    resolved_save_path = save_path.format(input_type=input_type) if save_path is not None else None
+
     # ─── Step 1: データ準備 ───
     subject_data: List[Tuple[str, np.ndarray, int]] = []
     X_all_parts: List[np.ndarray] = []
@@ -270,19 +321,22 @@ def run_gaussian_hmm(
 
     for participant_id, df in concat_list:
         try:
-            work = _drop_na_rows(df)
+            work = _drop_na_rows(df, input_type=input_type)
         except ValueError as e:
             print(f"Skipping {participant_id}: {e}")
             continue
 
-        abs_ae = _compute_abs_angular_error(work)
-        n_trials = len(abs_ae)
+        if input_type == "reaction_time":
+            obs = _compute_log_reaction_time(work)
+        else:
+            obs = _compute_abs_angular_error(work)
+        n_trials = len(obs)
 
         if n_trials < 5:
             print(f"Skipping {participant_id}: only {n_trials} valid trials (minimum 5 required).")
             continue
 
-        X_i = abs_ae.reshape(-1, 1)
+        X_i = obs.reshape(-1, 1)
         subject_data.append((participant_id, X_i, n_trials))
         X_all_parts.append(X_i)
         lengths.append(n_trials)
@@ -295,16 +349,17 @@ def run_gaussian_hmm(
     # ─── Step 2: グローバルfitting ───
     n_subjects = len(subject_data)
     total_trials = len(X_all)
+    _unit = "log(RT)" if input_type == "reaction_time" else "°"
     print(
-        f"[Gaussian HMM] Global fitting: {n_subjects} subjects, "
+        f"[Gaussian HMM({input_type})] Global fitting: {n_subjects} subjects, "
         f"{total_trials} total trials, {n_init} initializations..."
     )
     global_model = _fit_global_model(X_all, lengths, n_init=n_init, n_iter=n_iter, tol=tol)
     global_score = global_model.score(X_all, lengths=lengths)
     print(
-        f"[Gaussian HMM] Global model: "
-        f"μ0={global_model.means_[0, 0]:.2f}°, "
-        f"μ1={global_model.means_[1, 0]:.2f}°, "
+        f"[Gaussian HMM({input_type})] Global model: "
+        f"μ0={global_model.means_[0, 0]:.3f}{_unit}, "
+        f"μ1={global_model.means_[1, 0]:.3f}{_unit}, "
         f"loglik={global_score:.2f}"
     )
 
@@ -348,8 +403,8 @@ def run_gaussian_hmm(
 
             print(
                 f"  {participant_id}: "
-                f"μ_engaged={means_aligned[0, 0]:.1f}°, "
-                f"μ_disengaged={means_aligned[1, 0]:.1f}°, "
+                f"μ_engaged={means_aligned[0, 0]:.3f}{_unit}, "
+                f"μ_disengaged={means_aligned[1, 0]:.3f}{_unit}, "
                 f"loglik={log_likelihood:.2f}"
             )
 
@@ -357,9 +412,9 @@ def run_gaussian_hmm(
             print(f"  Skipping individual fitting for {participant_id}: {e}")
             continue
 
-    print(f"[Gaussian HMM] Done: {len(results)}/{n_subjects} subjects fitted.")
+    print(f"[Gaussian HMM({input_type})] Done: {len(results)}/{n_subjects} subjects fitted.")
 
-    if save_path is not None:
-        save_gaussian_hmm_results(results, save_path)
+    if resolved_save_path is not None:
+        save_gaussian_hmm_results(results, resolved_save_path)
 
     return results

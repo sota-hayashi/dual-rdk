@@ -3,14 +3,13 @@ from typing import Dict, Iterable, List, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.stats import spearmanr, chi2, ttest_ind, ttest_1samp, shapiro, mannwhitneyu, normaltest, lognorm, gamma, invgauss, kstest
+from scipy.stats import spearmanr, chi2, ttest_ind, ttest_rel, ttest_1samp, shapiro, mannwhitneyu, normaltest, lognorm, gamma, invgauss, kstest
 import statsmodels.api as sm
-from statsmodels.formula.api import ols
+from statsmodels.formula.api import ols, mixedlm
 
 
 from io_data.utils import combine_subjects
 from common.config import TRIALS_PER_SESSION
-
 
 def permutation_spearman(x: np.ndarray, y: np.ndarray, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
     """Compute Spearman r and permutation p-value (two-sided)."""
@@ -794,3 +793,108 @@ def fit_exgaussian_and_evaluate(
         ),
     }
     return result
+
+def t_test_angular_error_paired(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, float]:
+    """
+    各参加者のOOZ/非OOZ試行のangular error平均を算出し，
+    対応のあるt検定で全参加者にわたって検定する．
+    """
+    records = []
+    for subj_id, df in concat_list:
+        df = df.copy()
+        df["angular_error"] = np.where(
+            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
+            df["angular_error_target"].abs(),
+            df["angular_error_distractor"].abs(),
+        )
+        work = df.dropna(subset=["angular_error", "ooz"])
+
+        ooz_mean = work.loc[work["ooz"] == 1, "angular_error"].mean()
+        ooz_std = work.loc[work["ooz"] == 1, "angular_error"].std()
+        non_ooz_mean = work.loc[work["ooz"] == 0, "angular_error"].mean()
+        non_ooz_std = work.loc[work["ooz"] == 0, "angular_error"].std()
+
+        # OOZ試行数が少なすぎる参加者は除外
+        n_ooz = (work["ooz"] == 1).sum()
+        n_non_ooz = (work["ooz"] == 0).sum()
+        if n_ooz < 3 or n_non_ooz < 3:
+            continue
+        if np.isnan(ooz_mean) or np.isnan(non_ooz_mean):
+            continue
+
+        records.append({
+            "subject_id": subj_id,
+            "ooz_mean": ooz_mean,
+            "non_ooz_mean": non_ooz_mean,
+            "ooz_std": ooz_std,
+            "non_ooz_std": non_ooz_std,
+            "diff": ooz_mean - non_ooz_mean,
+            "n_ooz": n_ooz,
+            "n_non_ooz": n_non_ooz,
+        })
+
+    if len(records) < 2:
+        return {"t_stat": np.nan, "p_value": np.nan}
+
+    result_df = pd.DataFrame(records)
+    t_stat, p_value = ttest_rel(result_df["ooz_mean"], result_df["non_ooz_mean"])
+
+    return {
+        "n_participants": len(result_df),
+        "mean_ooz": round(result_df["ooz_mean"].mean(), 2),
+        "mean_non_ooz": round(result_df["non_ooz_mean"].mean(), 2),
+        "std_ooz": round(result_df["ooz_std"].mean(), 2),
+        "std_non_ooz": round(result_df["non_ooz_std"].mean(), 2),
+        "mean_diff": round(result_df["diff"].mean(), 2),
+        "std_diff": round(result_df["diff"].std(), 2),
+        "t_stat": round(t_stat, 2),
+        "p_value": round(p_value, 5),
+    }
+
+def lmm_angular_error_ooz(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> Dict[str, float]:
+    """
+    全試行のデータを使い，OOZ状態がangular_errorに与える影響を
+    線形混合効果モデルで推定する．参加者をランダム切片として扱う．
+    """
+    rows = []
+    for pid, df in concat_list:
+        df = df.copy()
+        df["angular_error"] = np.where(
+            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
+            df["angular_error_target"].abs(),
+            df["angular_error_distractor"].abs(),
+        )
+        work = df.dropna(subset=["angular_error", "ooz"])
+        work["subject_id"] = pid
+        rows.append(work[["subject_id", "angular_error", "ooz"]])
+
+    if not rows:
+        return {"coef_ooz": np.nan, "p_value": np.nan}
+
+    all_data = pd.concat(rows, ignore_index=True)
+    all_data["ooz"] = all_data["ooz"].astype(float)
+
+    model = mixedlm(
+        "angular_error ~ ooz",
+        data=all_data,
+        groups=all_data["subject_id"]
+    )
+    result = model.fit(reml=True)
+
+    coef_ooz = result.params["ooz"]
+    se_ooz = result.bse["ooz"]
+    z_stat = result.tvalues["ooz"]   # mixedlmはz統計量
+    p_value = result.pvalues["ooz"]
+
+    return {
+        "n_trials": len(all_data),
+        "n_participants": all_data["subject_id"].nunique(),
+        "coef_ooz": round(coef_ooz, 3),
+        "se_ooz": round(se_ooz, 3),
+        "z_stat": round(z_stat, 3),
+        "p_value": round(p_value, 5),
+    }
