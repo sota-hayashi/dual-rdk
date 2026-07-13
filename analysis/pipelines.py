@@ -1,4 +1,4 @@
-from pathlib import Path
+from common.config import ONLINE_DATA_DIR
 from io_data.load import load_all_concatenated
 from analysis.pipelines_behavior import run_behavior, get_subjects_by_behavior_data
 from analysis.pipelines_hmm import run_hmm
@@ -8,7 +8,7 @@ from analysis.pipelines_hmm import run_hmm
 def run_default():
     # 1) データを一度だけロード
     all_data_practice, all_data_learning, all_data_awareness = load_all_concatenated(
-        Path("data_online_experiment"),
+        ONLINE_DATA_DIR,
         subjects_include=None
     )
 
@@ -19,7 +19,7 @@ def run_default():
     subjects = subjects_behavior_on
     if subjects:
         all_data_practice, all_data_learning, all_data_awareness = load_all_concatenated(
-            Path("data_online_experiment"),
+            ONLINE_DATA_DIR,
             subjects_include=subjects
         )
         behavioral_df = None  # データ再ロード後は再計算が必要

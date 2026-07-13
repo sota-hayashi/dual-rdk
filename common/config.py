@@ -1,7 +1,17 @@
 from pathlib import Path
 
+# リポジトリルート（このファイルの位置基準で解決し、cwd に依存しない）
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# 入力データ（読み取り専用）
+DATA_DIR = REPO_ROOT / "data"
+PILOT_CSV_DATA_DIR = DATA_DIR / "raw" / "pilot_csv"
+PILOT_JSON_DATA_DIR = DATA_DIR / "raw" / "pilot_json"
+ONLINE_DATA_DIR = DATA_DIR / "raw" / "online"
+EXCLUDED_DATA_DIR = DATA_DIR / "excluded"
+
 # デフォルトのデータパスはJSONに差し替え（必要に応じて変更してください）
-DATA_PATH = Path("data_online_experiment/6977bd8c4a66002ceaa54c1d.json")
+DATA_PATH = ONLINE_DATA_DIR / "6977bd8c4a66002ceaa54c1d.json"
 SUMMARY_PATH = Path("./hmm_summary/hmm_summary_decisive_prob.csv")
 
 PRACTICE_ROWS = 32
