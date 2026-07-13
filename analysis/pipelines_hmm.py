@@ -3,6 +3,12 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from io_data.utils import combine_subjects
+from stats.hmm_validation import (                                                                                                            
+    run_recovery_analysis, evaluate_recovery_results,                                                                                         
+    run_external_validation, print_validation_summary                                                                                         
+)           
+
 from common.config import SUMMARY_PATH, GAUSSIAN_HMM_SUMMARY_PATH
 from io_data.load import (
     load_all_concatenated,
@@ -63,6 +69,7 @@ def run_gaussian_hmm_pipeline(
     n_init: int = 20,
     n_iter: int = 200,
     tol: float = 1e-4,
+    input_type: str = "reaction_time",
 ) -> List[Dict]:
     """
     Gaussian HMM パイプラインを実行する。
@@ -105,6 +112,7 @@ def run_gaussian_hmm_pipeline(
             n_iter=n_iter,
             tol=tol,
             save_path=str(summary_path),
+            input_type=input_type,
         )
         return results
 
@@ -114,10 +122,13 @@ def run_gaussian_hmm_pipeline(
 def run_hmm(
     all_data_learning=None,
     train: bool = False,
+    input_type: str = "reaction_time",
     ):
     gaussian_hmm_output = run_gaussian_hmm_pipeline(
         all_data_learning=all_data_learning,
-        train=train)
+        train=train,
+        input_type=input_type,
+    )
     subjects = [output["participant_id"] for output in gaussian_hmm_output]
     subjects_states = [np.mean(output["viterbi_states"]) for output in gaussian_hmm_output]
 
@@ -128,6 +139,12 @@ def run_hmm(
         "subject": subjects,
         "off_rate": subjects_states
     })
-    print(gaussian_hmm_df)
+    # print(gaussian_hmm_df)
+
+    # recovery = run_recovery_analysis(n_trials=48, n_simulations=100)                                                                              
+    # recovery_eval = evaluate_recovery_results(recovery)                                                                                           
+                                                                                                                                                
+    # validation = run_external_validation(gaussian_hmm_output, combine_subjects(all_data_learning)) 
+    # print_validation_summary(recovery_eval, validation)  
 
     return gaussian_hmm_df

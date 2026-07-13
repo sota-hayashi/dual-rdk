@@ -6,7 +6,8 @@ import ast
 import pandas as pd
 import numpy as np
 
-from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS
+from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS, EXCLUDED_SUBJECTS
+from features.behavior import label_if_ooz
 
 
 def load_data(path: Path) -> pd.DataFrame:
@@ -68,7 +69,7 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
         follow = group_sorted.iloc[1]
         base["reward_points"] = follow.get("reward_points")
         base["target_direction"] = follow.get("target_direction")
-        base["distractor_direction"] = follow.get("distractor_direction")
+        # distractor_direction is only present in the base (stimulus) row, not the follow (response) row
         base["angular_error_target"] = follow.get("angular_error_target")
         base["angular_error_distractor"] = follow.get("angular_error_distractor")
         base["rt"] = follow.get("rt")
@@ -94,6 +95,14 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
             return 0
         else:
             return -1
+    
+    def determine_target_color(row):
+        if row["target_group"] == "white":
+            return 0
+        elif row["target_group"] == "black":
+            return 1
+        else:
+            return np.nan
         
     def infer_choice(row):
         if row["chosen_item"] == 1:
@@ -102,8 +111,10 @@ def annotate_choices(df: pd.DataFrame) -> pd.DataFrame:
             return "white" if row["target_group"] == "black" else "black"  # 反対色=ディストラクター色
         return np.nan  # -1は除外
     
+    df["target_item"] = df.apply(determine_target_color, axis=1)
     df["chosen_item"] = df.apply(determine_choice, axis=1)
     df["chosen_color"] = df.apply(infer_choice, axis=1)
+    df["random_initial_angle_reverted"] = df.apply(lambda row: (450 - row["random_initial_angle"] + 360) % 360, axis=1)
     df["bad_response"] = df.apply(lambda row: row["random_initial_angle"] == row["response_angle_css"] and row["chosen_item"] == -1, axis=1)
 
     df["prev_chosen_color"] = df["chosen_color"].shift(1)
@@ -183,120 +194,7 @@ def load_all_concatenated(
         subj_id = file_path.stem
         if subjects_include is not None and subj_id not in subjects_include:
             continue
-        if subj_id in [
-            ## Excluded subjects:
-            ## 2025/12/15に集めたデータのうち、以下の被験者は除外する##
-            # "666306b0bf2de127943c419f",
-            # "667aca76f4fb2f1d50d80c2e",
-            # "673757f92aa69c13b7841d90",
-            # "673f0e83fbba6c167eebd6f7",
-            # "677e4656af6e5525f72fc926",
-            # "678f3b13379c83cf1027d2ed",
-            # "596634e005f2df00017281ae", # 極端にターゲットを選んでいる回数が多い 49/1
-            # # "6743c8da977b0d274dad1fc2", # 極端にターゲットを選んでいる回数が多いその２ 41/3
-            # "66534b438dbae7a1d0a36a08", # 28試行においてターゲット/ディストラクターを回答していない
-            # "6755b42b20cf26a928acaa05", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning
-            # "67e03ba35f26a1779f406b6a", # ANOVAとロジスティック回帰で有意な結果（ターゲット選択割合の向上傾向）が確認されている被験者 in df_learning and df_awareness
-
-            # # HMMによりスイッチの回数が多かった被験者群
-            # "596634e005f2df00017281ae",
-            # "5cfd24ccf8ff8a00017319d0",
-            # "667aca76f4fb2f1d50d80c2e",
-            # "673a1dcffde7de9c08f6d2e6",
-            # "673f0e83fbba6c167eebd6f7",
-            # "673f4f8fa5b4a47492e30aea",
-            # "6743c8da977b0d274dad1fc2",
-            # "678f3b13379c83cf1027d2ed",
-            # "67f789ca382e36a759a011af",
-            # "66c9b31cbfa4d79905b6414d",
-            # "6133a0d1026a4b5c9c5aaa43",
-            # "67e03ba35f26a1779f406b6a",
-
-
-
-            ## 2026/1/11に集めたデータのうち、以下の被験者は除外する##
-            # "5ee7fbc114d0a60f9b076fb6",
-            # # "650f65aac58fe4dc08bbe23f",
-            # "660d675bbdf59327d9deb4ad", # else(-1)がn=12と多い
-            # "67d1d172e049a486152a5ce9", # else(-1)がn=13と多い
-
-            # "5e92178e8ee4fe54b65b7c39", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択する傾向が若干ある．
-            # # "6932b19c5260dda743fca4af",
-            # # "602e48dbf732e9962e27fdbd",
-            # # "66723b1f7c3cf6961f0868a3",
-
-            # "5671131573f58b0005664333",
-            # "602e48dbf732e9962e27fdbd",
-            # "616033a44ba802b7e18daaa9",
-            # "650f65aac58fe4dc08bbe23f",
-            # "65794b62e4bbf95a4f2c9f03",
-            # "660d675bbdf59327d9deb4ad",
-            # "6614fb6af3c5aa23b962ea2d",
-            # "66723b1f7c3cf6961f0868a3",
-            # "669533c82c03a4d6320159d3",
-            # "67d1d172e049a486152a5ce9",
-            # "692e41b6e14a945652e39997",
-            # "6932b19c5260dda743fca4af",
-            # "5e92178e8ee4fe54b65b7c39",
-            # "6932b19c5260dda743fca4af",
-            # "6614fb6af3c5aa23b962ea2d",
-            # "5e6473fbc15dbe1f71eea95b",
-
-            # 2026/1/24に集めたデータのうち、以下の被験者は除外する##
-            # 遷移確率が0.9, 0.1の場合と，0.7, 0.3の場合でそれぞれの場合でon-off-cyclingにおいて被っていない被験者を除外
-            # "6614fb6af3c5aa23b962ea2d", # learning phaseで極端にディストラクターを選択し，awareness phaseで極端にターゲットを選択している．
-            # "63039f41fa5c21d483996be2", # 上に同様
-            # "67cc3f4c640c0ff4df30a225",
-            # "68e541cbbf146b5c074849ac",
-            # "696c3f1675addf129b4bff87",
-            
-            # 一旦2026/2/5までのデータ
-            # '5671131573f58b0005664333', '5b2150d538b0be00014137fb', '5dd0dce9ed7ea418f59810e4', '5ee7fbc114d0a60f9b076fb6', '65ccca52871269168cc029b5', '65f2f5ae1f9747ed36bd7226', '6613f83d1a9cf059d0af91ec', '6631997e0554bb6d25062fd4', '66723b1f7c3cf6961f0868a3', '669533c82c03a4d6320159d3', '66cc85c87017ef38adbaebc6', '67911b9be5af0ac0763a28c7', '67eb5332af03cf75862d5e87', '6917b43630e666e39c18fa7b', '692e41b6e14a945652e39997', '696c3f1675addf129b4bff87', '5987bfb80e411a0001d83837', '5d617ba9364f9a0019f1dac3', '5e6473fbc15dbe1f71eea95b', '602e48dbf732e9962e27fdbd', '616033a44ba802b7e18daaa9', '650f65aac58fe4dc08bbe23f', '654fd3d72b14d852c7fff2b4', '65794b62e4bbf95a4f2c9f03', '65ff850ad8ac7b0e4cf9ec57', '66cb3e461d3bc3f143a834bb', '682b23f345fc428cc9586a06', '68e541cbbf146b5c074849ac', '69126cc06844917f79f2ec58', '656bb5b282d8f0267db9d167', '65fd4ff0fac6ac4525f54b88', '67cc3f4c640c0ff4df30a225', '69124176667ec0990dfb9da1', '660d675bbdf59327d9deb4ad', '67d1d172e049a486152a5ce9', '6932b19c5260dda743fca4af', '693348df632d7f923e83d2bb',
-            
-            ## 2026/2/5に集めたデータのうち、以下の被験者は除外する##
-            # "697cc09a8dd7b2c8061ff4e5",# task-irrelevantな試行が19試行
-            # "667bd577710d52a05ac09036",# シグモイド関数のフィッティングで有意な負の結果が出た，つまり試行を重ねるとディストラクターを選択するようになっていった参加者
-            # 色バイアスが強い被験者群（80%以上の偏りを示す被験者群）
-            # 群ごとに分けているが，それぞれの参加者はhmmのrandom seedによって多少の移動があるため，
-            # そこまで厳密に考えなくて良い
-            # in group on-to-on
-            "5671131573f58b0005664333", # b=3, w=45
-            "65fd4ff0fac6ac4525f54b88", # b=45, w=0
-            "66a50231bda26954b4e43e7d", # b= 39, w=9
-            "696c3f1675addf129b4bff87", # b=43, w=5
-            # in group off-to-on
-            "62b2080f8f89f2f15c47d9ba", # b=39, w=5
-            # in group on-to-off
-            "69126cc06844917f79f2ec58", # b=37, w=8
-            "65794b62e4bbf95a4f2c9f03", # b=30, w=6
-            "616033a44ba802b7e18daaa9", # b=32, w=4
-            # in group off-to-off
-            "66cb3e461d3bc3f143a834bb", # b=44, w=3
-            "67d1be8cb9034e17620cd166", # b=46, w=0
-            "665f23fcab11c11fb972a667", # b=46, w=0
-            # in group on-off-cycling
-            "693348df632d7f923e83d2bb", # b=43, w=2
-            "68238de3a3ba8b99fef9b7ca", # b=46, w=2
-            "677d283c3ac4eacdfc7a59b4", # b=39, w=1
-            "611ce44efa3822c780ae383e", # b=35, w=2
-            # "615ab5adc70f6edcacba5860", # b=9, w=32 # この被験者においては78%の偏りを示している
-
-            "67800b133eced63d8ec0cde8", # task-irrelevantな試行が16試行
-            "697cc09a8dd7b2c8061ff4e5", # task-irrelevantな試行が18試行
-            # '68e541cbbf146b5c074849ac', '6932b19c5260dda743fca4af', '6977bd8c4a66002ceaa54c1d', '697a7ca703a2f04efb2de9e9',
-
-
-            # "673f4f8fa5b4a47492e30aea", # RTの標準偏差が極端に大きい（std=20000ms）
-            # "666408427db5e38fe0ea1736", # RTの標準偏差が極端に大きい（std=17000ms）
-            # "65fb13bebfa339f73b4cf76a", # RTの標準偏差が極端に大きい（std=38000ms）
-            # "5d617ba9364f9a0019f1dac3", # RTの標準偏差が極端に大きい（std=5900ms）
-            # "682b23f345fc428cc9586a06", # RTの標準偏差が極端に大きい（std=5800ms）
-            # '5987bfb80e411a0001d83837', '5b2150d538b0be00014137fb', '60a59d92b7363e85a2945dde', '60fcd2ade28cc412d542108c', '612376826a580ca0368bb19f', '650f65aac58fe4dc08bbe23f', '654fd3d72b14d852c7fff2b4', '6550edd3c5d5a51c51ab1224', '656bb5b282d8f0267db9d167', '65f2f5ae1f9747ed36bd7226', '65ff850ad8ac7b0e4cf9ec57', '660bdc29f5dec2745c7e7ee3', '660d675bbdf59327d9deb4ad', '6631997e0554bb6d25062fd4', '663636e1e732142a9c211523', '669533c82c03a4d6320159d3', '66b0cd32e02e57ac86e82550', '66b0ce2b37f5b9ab41e82585', '67911b9be5af0ac0763a28c7', '67cc3f4c640c0ff4df30a225', '67d1d172e049a486152a5ce9', '67eb5332af03cf75862d5e87', '67f864f1b7ea815cc3583637', '680aac52abce2170943ff846', '68598a1d4cebd213b2abb1d9', '6902584f39b4b2ce82a5eda6', '6917b43630e666e39c18fa7b', '692d65c6d41395358622de47', '692e41b6e14a945652e39997', '6978e94c86ef2c792e089759', '697ca9cfd08ef9e2ffd194c9', '697cbad1e4fa658183a9a4ba'
-            # '5d83b53430e67e0018bf3b38', '5dd0dce9ed7ea418f59810e4', '5e6473fbc15dbe1f71eea95b', '5ee7fbc114d0a60f9b076fb6', '602e48dbf732e9962e27fdbd', '6162fc52fa68079d28dc5be9', '650f65aac58fe4dc08bbe23f_2', '65ccca52871269168cc029b5', '65feaaac53eb219f09ad5ea0', '6613f83d1a9cf059d0af91ec', '664c9a37d570871d534dd3c2', '66723b1f7c3cf6961f0868a3', '667a7ab2a6179deb78e9dd1a', '66cc85c87017ef38adbaebc6', '68e541cbbf146b5c074849ac', '69124176667ec0990dfb9da1', '6932b19c5260dda743fca4af', '69727a44c5c16e6541319a6a', '6977bd8c4a66002ceaa54c1d', '697a7ca703a2f04efb2de9e9', '697a8232cf359493f5c6f3fb'
-
-
-
-        ]:
+        if subj_id in EXCLUDED_SUBJECTS:
             # print(f"Excluding subject {subj_id}")
             continue
         try:
@@ -306,6 +204,8 @@ def load_all_concatenated(
             datasets_awareness.append((subj_id, concat_df_awareness))
         except Exception as e:
             print(f"Skipping {file_path.name}: {e}")
+
+    datasets_learning, _ = label_if_ooz(datasets_learning)
     return datasets_practice, datasets_learning, datasets_awareness
 
 

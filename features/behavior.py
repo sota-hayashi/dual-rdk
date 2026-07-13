@@ -54,6 +54,7 @@ def calculate_rt_moving_mean(
         if "rt" not in work.columns:
             raise ValueError("DataFrame lacks 'rt' column.")
         rt = pd.to_numeric(work["rt"], errors="coerce")
+        rt = np.log(rt)
         work["rt_moving_mean"] = rt.shift(1).rolling(window=window, min_periods=1).mean()
         updated.append((subj_id, work))
     return updated
@@ -73,6 +74,7 @@ def calculate_rt_deviance_mean(
         if "rt" not in work.columns:
             raise ValueError("DataFrame lacks 'rt' column.")
         rt = pd.to_numeric(work["rt"], errors="coerce")
+        rt = np.log(rt)
         rt_mean = rt.mean()
         dev = (rt - rt_mean).abs()
         work["rt_deviance"] = dev
@@ -166,6 +168,51 @@ def compute_minimum_AE_standard_deviance(
         results.append((subj_id, std))
     return pd.DataFrame(results, columns=["subject", "min_ae_std"])
 
+def _angular_diff(a: float, b: float) -> float:
+    """円環上の角度差（0〜180°）を返す。"""
+    diff = abs(a - b) % 360
+    return min(diff, 360 - diff)
+
+
+def compute_mean_initial_angular_difference(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    各被験者のバーの初期位置と最も近い方向（target/distractor）との
+    角度差の平均・標準偏差・CVを計算する。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        df = df.dropna(subset=["rt"]).copy()
+
+        # 循環統計で target/distractor それぞれの角度差を計算
+        df["diff_to_target"] = df.apply(
+            lambda row: _angular_diff(row["random_initial_angle_reverted"], row["target_direction"]),
+            axis=1,
+        )
+        df["diff_to_distractor"] = df.apply(
+            lambda row: _angular_diff(row["random_initial_angle_reverted"], row["distractor_direction"]),
+            axis=1,
+        )
+
+        # 近い方の角度差を initial_error として採用
+        df["initial_error"] = df[["diff_to_target", "diff_to_distractor"]].min(axis=1)
+
+        mean_diff = df["initial_error"].mean()
+        std_diff = df["initial_error"].std(ddof=1)
+        cv_diff = std_diff / mean_diff if mean_diff != 0 else np.nan
+
+        results.append((subj_id, mean_diff, std_diff, cv_diff))
+
+    return pd.DataFrame(
+        results,
+        columns=[
+            "subject",
+            "mean_initial_angular_difference",
+            "std_initial_angular_difference",
+            "cv_initial_angular_difference",
+        ],
+    )
 def compute_slope_of_ae_over_trials_all(
     concat_list: List[Tuple[str, pd.DataFrame]],
 ) -> pd.DataFrame:
@@ -253,14 +300,60 @@ def compute_win_stay_lose_switch_rate_subjects(
         results.append((subj_id, win_stay_rate, lose_switch_rate))
     return pd.DataFrame(results, columns=["subject", "win_stay_rate", "lose_switch_rate"])
 
+def label_if_ooz(
+    concat_list: List[Tuple[str, pd.DataFrame]]
+) -> List[Tuple[str, pd.DataFrame]]:
+    """
+    Step1-3 に従ってOOZをラベル付けする。
+    OOZ(t) = (M_t < M_mean) and (D_t_smooth > T)
+    """
+    with_moving = calculate_rt_moving_mean(concat_list, window=3)
+    with_deviance = calculate_rt_deviance_mean(with_moving, window=3)
+
+    medians = []
+    for _, df in with_deviance:
+        median_val = df["rt_deviance_mean"].dropna().median()
+        if np.isfinite(median_val):
+            medians.append(median_val)
+    threshold = float(np.mean(medians)) if medians else np.nan
+
+    labeled = []
+    results = []
+    for subj_id, df in with_deviance:
+        work = df.copy()
+        m_mean = work["rt_moving_mean"].dropna().mean()
+        cond_fast = work["rt_moving_mean"] < m_mean
+        cond_deviant = work["rt_deviance_mean"] > threshold
+        work["ooz"] = (cond_fast & cond_deviant).astype(int)
+        labeled.append((subj_id, work))
+        results.append((subj_id, work["ooz"].tolist()))
+    return labeled, pd.DataFrame(results, columns=["subject", "ooz"])
+
+
+def extract_ooz_from_labeled(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+) -> pd.DataFrame:
+    """
+    ロード時に label_if_ooz() で付与済みの ooz 列を抽出する。
+    再計算せず既存ラベルを使うことで、閾値の一貫性を保つ。
+    """
+    results = []
+    for subj_id, df in concat_list:
+        if "ooz" not in df.columns:
+            raise ValueError(
+                f"DataFrame for {subj_id} lacks 'ooz' column. "
+                "Ensure label_if_ooz was called during data loading."
+            )
+        results.append((subj_id, df["ooz"].tolist()))
+    return pd.DataFrame(results, columns=["subject", "ooz"])
+
 
 def cancatenate_necessary_behavioral_df(
     concat_list: List[Tuple[str, pd.DataFrame]],
-) -> List[Tuple[str, pd.DataFrame]]:
+) -> pd.DataFrame:
     """
     各被験者の必要な行動データを結合する。
     """
-    df_merged = []
     task_relevant_choice_df = compute_task_relevant_choice_rate_subjects(concat_list)
     target_choice_df = compute_target_choice_rate_subjects(concat_list)
     rt_mean = compute_RT_mean(concat_list)
@@ -271,8 +364,10 @@ def cancatenate_necessary_behavioral_df(
     mean_angular_error_df = compute_mean_angular_error_subjects(concat_list)
     win_stay_df = compute_win_stay_lose_switch_rate_subjects(concat_list)
     reward_points_df = compute_mean_reward_points(concat_list)
+    ooz_df = extract_ooz_from_labeled(concat_list)
+    mean_initial_angular_difference_df = compute_mean_initial_angular_difference(concat_list)
 
-    data_frames = [task_relevant_choice_df, target_choice_df, rt_mean, rt_variances, rt_cv, ae_variances, slope_df, mean_angular_error_df, win_stay_df, reward_points_df]
+    data_frames = [task_relevant_choice_df, target_choice_df, rt_mean, rt_variances, rt_cv, ae_variances, slope_df, mean_angular_error_df, win_stay_df, reward_points_df, ooz_df, mean_initial_angular_difference_df]
     df_merged = reduce(lambda left, right: pd.merge(left, right, on='subject', how='inner'), data_frames)
 
     return df_merged
@@ -291,11 +386,13 @@ def compute_target_choice_rate_subjects(
         df = df.dropna(subset=["rt"]).copy()
         df["chosen_item"] = df["chosen_item"].replace({-1: 0})
         valid = df[df["chosen_item"].isin([0, 1])]
+        # valid = valid[valid["ooz"] == 0]
         if valid.empty:
             mean_rate = np.nan
         else:
             mean_rate = float((valid["chosen_item"] == 1).mean())
             rate_diff = valid.loc[(valid["num_trial"] >= 24), "chosen_item"].mean() - valid.loc[(valid["num_trial"] < 24), "chosen_item"].mean()
+            # rate_diff = valid.loc[(valid["ooz"] == 1), "chosen_item"].mean() - valid.loc[(valid["ooz"] == 0), "chosen_item"].mean()
 
         rows.append({"subject": subj_id, "target_choice_rate": mean_rate, "target_choice_rate_diff": rate_diff})
 

@@ -268,6 +268,7 @@ def fit_q_learning_ooz_map_group(
         log_posterior, n_participants, n_total_trials
     """
     participants_data = []
+    subject_ids = []
     for subj_id, df in concat_list:
         if not {"rt", "chosen_color", "reward_points", "target_item", "ooz"}.issubset(df.columns):
             continue
@@ -279,6 +280,7 @@ def fit_q_learning_ooz_map_group(
         states = df_clean["target_item"].values.astype(int)
         ooz_labels = df_clean["ooz"].values.astype(int)
         participants_data.append((choices, rewards, states, ooz_labels))
+        subject_ids.append(subj_id)
 
     if not participants_data:
         raise ValueError("No valid participant data found.")
@@ -314,6 +316,21 @@ def fit_q_learning_ooz_map_group(
                         best_params = result.x
 
     a0_hat, a1_hat, beta_hat, c_hat = best_params
+
+    # 参加者ごとの対数尤度
+    per_participant = []
+    for i, (choices, rewards, states, ooz_labels) in enumerate(participants_data):
+        ll = _compute_log_likelihood(
+            a0_hat, a1_hat, beta_hat, c_hat,
+            choices, rewards, states, ooz_labels,
+        )
+        per_participant.append({
+            "subject": subject_ids[i],
+            "log_likelihood": ll,
+            "n_trials": len(choices),
+        })
+
+    ll_arr = np.array([p["log_likelihood"] for p in per_participant])
     n_total_trials = sum(len(c) for c, _, _, _ in participants_data)
 
     return {
@@ -321,10 +338,17 @@ def fit_q_learning_ooz_map_group(
         "alpha_1": a1_hat,
         "beta": beta_hat,
         "c_black": c_hat,
-        "alpha_diff": a1_hat - a0_hat,
+        "alpha_diff": float(np.log(a1_hat / a0_hat)),
         "log_posterior": -best_neg_lp,
         "n_participants": len(participants_data),
         "n_total_trials": n_total_trials,
+        "per_participant": per_participant,
+        "fit_summary": {
+            "mean_ll": float(np.mean(ll_arr)),
+            "std_ll": float(np.std(ll_arr, ddof=1)),
+            "min_ll": float(np.min(ll_arr)),
+            "max_ll": float(np.max(ll_arr)),
+        },
     }
 
 

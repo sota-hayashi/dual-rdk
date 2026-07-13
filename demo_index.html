@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>RDK Demo Recorder</title>
+  <style>
+    body {
+      background: #AAA;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: sans-serif;
+    }
+    canvas {
+      border-radius: 50%;
+      display: block;
+    }
+    #controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    button {
+      padding: 10px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #start-btn { background: #333; color: #fff; }
+    #stop-btn  { background: #c00; color: #fff; display: none; }
+    #status    { font-size: 14px; color: #333; }
+
+    /* ---- パラメータ設定パネル ---- */
+    #params {
+      margin-bottom: 20px;
+      background: rgba(255,255,255,0.6);
+      padding: 16px 24px;
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: auto auto auto auto;
+      gap: 8px 20px;
+      align-items: center;
+      font-size: 14px;
+    }
+    #params label { text-align: right; }
+    #params input, #params select {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #999;
+      width: 90px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- パラメータ設定パネル -->
+  <div id="params">
+    <label>白色ドット方向 (°)</label>
+    <input type="number" id="white-dir" value="22" min="0" max="359">
+
+    <label>黒色ドット方向 (°)</label>
+    <input type="number" id="black-dir" value="292" min="0" max="359">
+
+    <label>ドット数 (各色)</label>
+    <input type="number" id="dot-count" value="100" min="10" max="500">
+
+    <label>速度 (px/frame)</label>
+    <input type="number" id="speed" value="2" min="0.5" max="10" step="0.5">
+
+    <label>ドットサイズ (px)</label>
+    <input type="number" id="dot-size" value="2.5" min="1" max="8" step="0.5">
+
+    <label>キャンバスサイズ (px)</label>
+    <input type="number" id="canvas-size" value="400" min="100" max="800">
+
+    <label>録画秒数 (s)</label>
+    <input type="number" id="rec-duration" value="4" min="1" max="30">
+
+    <label>パターン</label>
+    <select id="pattern">
+      <option value="WH_BL">W_H (22°) + B_L (292°)</option>
+      <option value="BH_WL">B_H (112°) + W_L (202°)</option>
+      <option value="custom">カスタム</option>
+    </select>
+  </div>
+
+  <canvas id="rdk-canvas" width="400" height="400"></canvas>
+
+  <div id="controls">
+    <button id="start-btn">▶ 描画開始 / 録画</button>
+    <button id="stop-btn">⏹ 録画停止 &amp; 保存</button>
+    <span id="status">待機中</span>
+  </div>
+
+<script>
+// ---- パターンのプリセット ----
+const PRESETS = {
+  WH_BL: { white: 22,  black: 292 },
+  BH_WL: { white: 202, black: 112 }
+};
+
+const patternSelect  = document.getElementById('pattern');
+const whiteDirInput  = document.getElementById('white-dir');
+const blackDirInput  = document.getElementById('black-dir');
+
+patternSelect.addEventListener('change', () => {
+  const p = PRESETS[patternSelect.value];
+  if (p) {
+    whiteDirInput.value = p.white;
+    blackDirInput.value = p.black;
+  }
+});
+
+// ---- ドット初期化（円形アパーチャ内に一様分布で配置）----
+function makeDots(n, cx, cy, r) {
+  return Array.from({ length: n }, () => {
+    const angle = Math.random() * 2 * Math.PI;
+    const dist  = Math.sqrt(Math.random()) * r; // sqrt で円内一様分布
+    return {
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist
+    };
+  });
+}
+
+// ---- 角度 (RDK座標系: 0°=右, 反時計回り) → dx, dy 変換 ----
+// jsPsychのRDKプラグインは 0°=右, 90°=上（y軸反転）
+function angleToVec(deg, speed) {
+  const rad = (deg * Math.PI) / 180;
+  return { dx: Math.cos(rad) * speed, dy: -Math.sin(rad) * speed };
+}
+
+// ---- 固定視標を描画 ----
+function drawFixation(ctx, cx, cy) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(17,17,17,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 7.5, cy); ctx.lineTo(cx + 7.5, cy);
+  ctx.moveTo(cx, cy - 7.5); ctx.lineTo(cx, cy + 7.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ---- メイン ----
+let rafId  = null;
+let recorder = null;
+let chunks   = [];
+let whiteDots, blackDots;
+
+const canvas = document.getElementById('rdk-canvas');
+const ctx    = canvas.getContext('2d');
+const startBtn  = document.getElementById('start-btn');
+const stopBtn   = document.getElementById('stop-btn');
+const statusEl  = document.getElementById('status');
+
+function getParams() {
+  return {
+    whiteDir  : parseFloat(whiteDirInput.value),
+    blackDir  : parseFloat(document.getElementById('black-dir').value),
+    n         : parseInt(document.getElementById('dot-count').value),
+    speed     : parseFloat(document.getElementById('speed').value),
+    dotSize   : parseFloat(document.getElementById('dot-size').value),
+    size      : parseInt(document.getElementById('canvas-size').value),
+    duration  : parseFloat(document.getElementById('rec-duration').value) * 1000
+  };
+}
+
+function startDemo() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+  const p  = getParams();
+  canvas.width  = p.size;
+  canvas.height = p.size;
+  const cx = p.size / 2;
+  const cy = p.size / 2;
+  const r  = p.size / 2;          // アパーチャ半径
+
+  const wVec = angleToVec(p.whiteDir, p.speed);
+  const bVec = angleToVec(p.blackDir, p.speed);
+
+  whiteDots = makeDots(p.n, cx, cy, r);
+  blackDots = makeDots(p.n, cx, cy, r);
+
+  // 運動方向を考慮したラップ関数を生成する
+  // ドットが円外に出たとき、運動方向に対して反対側の円弧上に再配置する。
+  // 垂直方向のオフセットは保持するため、ドットは必ず入射側から流れ込んでくるように見える。
+  const makeWrap = (vx, vy) => {
+    const speed = Math.sqrt(vx * vx + vy * vy);
+    const ux = vx / speed; // 運動方向の単位ベクトル
+    const uy = vy / speed;
+    return (dot) => {
+      const dx = dot.x - cx;
+      const dy = dot.y - cy;
+      if (dx * dx + dy * dy > r * r) {
+        // 中心からのズレを「運動方向成分」と「垂直成分」に分解
+        const along = dx * ux + dy * uy;
+        const perpX = dx - along * ux;
+        const perpY = dy - along * uy;
+        const perpLen2 = perpX * perpX + perpY * perpY;
+        if (perpLen2 <= r * r) {
+          // 垂直オフセットを保ったまま、反対側の入射点に配置
+          const newAlong = -Math.sqrt(r * r - perpLen2);
+          dot.x = cx + perpX + newAlong * ux;
+          dot.y = cy + perpY + newAlong * uy;
+        } else {
+          // 通常は起きないが、念のためランダム再配置
+          const angle = Math.random() * 2 * Math.PI;
+          const dist  = Math.sqrt(Math.random()) * r;
+          dot.x = cx + Math.cos(angle) * dist;
+          dot.y = cy + Math.sin(angle) * dist;
+        }
+      }
+    };
+  };
+
+  const wrapWhite = makeWrap(wVec.dx, wVec.dy);
+  const wrapBlack = makeWrap(bVec.dx, bVec.dy);
+
+  const draw = () => {
+    // キャンバス全体を#AAAで塗りつぶす（録画時に透明→黒化を防ぐ）
+    ctx.fillStyle = '#AAA';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // クリッピング（円形アパーチャ）
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // 白ドット
+    ctx.fillStyle = 'white';
+    whiteDots.forEach(d => {
+      d.x += wVec.dx; d.y += wVec.dy;
+      wrapWhite(d);
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, p.dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // 黒ドット
+    ctx.fillStyle = 'black';
+    blackDots.forEach(d => {
+      d.x += bVec.dx; d.y += bVec.dy;
+      wrapBlack(d);
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, p.dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.restore();
+
+    // 固定視標（クリップ外に描く）
+    drawFixation(ctx, cx, cy);
+
+    rafId = requestAnimationFrame(draw);
+  };
+
+  draw();
+
+  // --- MediaRecorder ---
+  chunks = [];
+  const stream = canvas.captureStream(60);
+  recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    cancelAnimationFrame(rafId); rafId = null;
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rdk_demo.webm';
+    a.click();
+    statusEl.textContent = '保存完了 → FFmpegでmp4に変換してください';
+    startBtn.style.display = '';
+    stopBtn.style.display  = 'none';
+  };
+  recorder.start();
+
+  // 指定秒数後に自動停止
+  setTimeout(() => {
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+  }, p.duration);
+
+  statusEl.textContent = `録画中… (${p.duration/1000}秒後に自動停止)`;
+  startBtn.style.display = 'none';
+  stopBtn.style.display  = '';
+}
+
+startBtn.addEventListener('click', startDemo);
+stopBtn.addEventListener('click', () => {
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+});
+</script>
+</body>
+</html>

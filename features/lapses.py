@@ -125,29 +125,3 @@ def compute_out_of_the_zone_ratio_by_rt_moving(
     valid = df.dropna(subset=["rt"]).copy()
     return valid["ooz"].mean() if not valid.empty else np.nan
 
-def label_if_ooz(
-    concat_list: List[Tuple[str, pd.DataFrame]]
-) -> List[Tuple[str, pd.DataFrame]]:
-    """
-    Step1-3 に従ってOOZをラベル付けする。
-    OOZ(t) = (M_t < M_mean) and (D_t_smooth > T)
-    """
-    with_moving = calculate_rt_moving_mean(concat_list, window=3)
-    with_deviance = calculate_rt_deviance_mean(with_moving, window=3)
-
-    medians = []
-    for _, df in with_deviance:
-        median_val = df["rt_deviance_mean"].dropna().median()
-        if np.isfinite(median_val):
-            medians.append(median_val)
-    threshold = float(np.mean(medians)) if medians else np.nan
-
-    labeled = []
-    for subj_id, df in with_deviance:
-        work = df.copy()
-        m_mean = work["rt_moving_mean"].dropna().mean()
-        cond_fast = work["rt_moving_mean"] < m_mean
-        cond_deviant = work["rt_deviance_mean"] > threshold
-        work["ooz"] = (cond_fast & cond_deviant).astype(int)
-        labeled.append((subj_id, work))
-    return labeled

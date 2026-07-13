@@ -3,7 +3,7 @@ import json
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, lognorm
+from scipy.stats import spearmanr, lognorm, ttest_1samp
 import statsmodels.api as sm
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -16,9 +16,8 @@ from features.lapses import (
     compute_out_of_zone_ratio_of_mean_AE,
     compute_out_of_zone_ratio_by_task_irrelevant_rate,
     compute_out_of_the_zone_ratio_by_rt_moving,
-    label_if_ooz,
 )
-from features.behavior import summarize_chosen_item_errors
+from features.behavior import summarize_chosen_item_errors, label_if_ooz, calculate_rt_moving_mean
 from io_data.load import load_hmm_summary
 from common.config import TRIALS_PER_SESSION
 
@@ -70,7 +69,7 @@ def plot_frac_ae_target_distractor_by_trial(
 def plot_rt_by_trial(
     df: pd.DataFrame,
     save_path: str = None,
-    window: int = 3
+    window: int = 5
 ):
     """Plot RT by trial with optional smoothing."""
     sub = df.dropna(subset=["num_trial", "rt"]).copy()
@@ -82,7 +81,7 @@ def plot_rt_by_trial(
     fig, ax = plt.subplots(figsize=(8, 5))
 
     if window > 1:
-        plot_values = sub["rt"].rolling(window=window, min_periods=1).mean()
+        plot_values = np.log(sub["rt"]).rolling(window=window, min_periods=1).mean()
         label = f'RT (smoothed, window={window})'
     else:
         plot_values = sub["rt"]
@@ -350,7 +349,7 @@ def plot_MW_vs_target_choice_across_subjects(
     if func is None:
         raise ValueError(f"Unknown ooz_index: {ooz_index}")
     if ooz_index == "rt_moving_based":
-        concat_list = label_if_ooz(concat_list)
+        concat_list, _ = label_if_ooz(concat_list)
 
     rows = []
     for subj_id, df in concat_list:
@@ -362,7 +361,7 @@ def plot_MW_vs_target_choice_across_subjects(
                 pass
             else:
                 valid = valid[valid["num_trial"] > n_trial - 1]
-            # valid["chosen_item"] = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
+            valid["chosen_item"] = valid["chosen_item"].replace({-1: 0, 0: 0, 1: 1})
             # valid = valid[valid["chosen_item"].isin([0, 1])]
             mean_target = (
                 # np.where(
@@ -370,7 +369,7 @@ def plot_MW_vs_target_choice_across_subjects(
                 #     valid["angular_error_target"].abs(),
                 #     valid["angular_error_distractor"].abs()
                 # ).mean()
-                valid["angular_error_target"].abs().mean()
+                valid.loc[valid["num_trial"] >= n_trial//2,"chosen_item"].mean() - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean()
                 # - valid.loc[valid["num_trial"] < n_trial//2,"chosen_item"].mean() if not valid.empty else np.nan
             )
             rows.append({
@@ -734,20 +733,21 @@ def plot_hist_with_lognormal_fit(
     if sigma > 0:
         pdf = (1 / (x * sigma * np.sqrt(2 * np.pi))) * np.exp(-((np.log(x) - mu) ** 2) / (2 * sigma ** 2))
         ax.plot(x, pdf, color="red", linewidth=2, label="Log-normal fit")
-        mask = (x >= q1) & (x <= q3)
-        ax.fill_between(x[mask], 0, pdf[mask], color="red", alpha=0.15, label="IQR area")
+        # mask = (x >= q1) & (x <= q3)
+        # ax.fill_between(x[mask], 0, pdf[mask], color="red", alpha=0.15, label="IQR area")
 
-    text_str = f"Q1 (25%): {q1:.2f}\nQ3 (75%): {q3:.2f}\nMean: {arr.mean():.2f}\nStd: {arr.std(ddof=1):.2f}"
-    ax.text(0.50, 0.95, text_str,
-            transform=ax.transAxes,
-            fontsize=10,
-            verticalalignment='top',
-            horizontalalignment='center',
-            bbox=dict(boxstyle='round,pad=0.5', fc='white', alpha=0.7))
+    # text_str = f"Q1 (25%): {q1:.2f}\nQ3 (75%): {q3:.2f}\nMean: {arr.mean():.2f}\nStd: {arr.std(ddof=1):.2f}"
+    # ax.text(0.50, 0.95, text_str,
+    #         transform=ax.transAxes,
+    #         fontsize=10,
+    #         verticalalignment='top',
+    #         horizontalalignment='center',
+    #         bbox=dict(boxstyle='round,pad=0.5', fc='white', alpha=0.7))
     ax.set_title(title, fontsize=14)
-    ax.set_xlabel(xlabel, fontsize=12)
-    ax.set_ylabel(ylabel, fontsize=12)
-    ax.legend(loc="upper right", fontsize=10)
+    ax.set_xlabel(xlabel, fontsize=14)
+    ax.set_ylabel(ylabel, fontsize=14)
+    ax.legend(loc="upper right", fontsize=14)
+    # ax.text(0.02, 0.98, '(B)', transform=ax.transAxes, fontsize=14, va='top', ha='left')
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
         print(f"Saved plot to {save_path}")
@@ -785,7 +785,10 @@ def plot_exp_obj_with_linear_fit(
     fit = model.fit(disp=False)
     slope = fit.params[1] if len(fit.params) > 1 else np.nan
     pval = fit.pvalues[1] if len(fit.pvalues) > 1 else np.nan
-    print(f"Linear fit results: slope={slope:.4f}, p-value={pval:.4f}")
+    tval = fit.tvalues[1] if len(fit.tvalues) > 1 else np.nan
+
+    # slope, pval = spearmanr(x, y)
+    print(f"Linear fit results: slope={slope:.4f}, p-value={pval:.4f}, t-value={tval:.4f}, n={len(x)}")
 
     # 信頼区間の上限と下限を取得
     predictions = fit.get_prediction(X)
@@ -806,8 +809,8 @@ def plot_exp_obj_with_linear_fit(
     fig, ax = plt.subplots(figsize=(8, 5))
     sns.regplot(x=x, y=y, ax=ax, scatter_kws={"alpha": 0.5}, line_kws={"color": "red"}, ci=95)
     ax.set_title(title, fontsize=14)
-    ax.set_xlabel(xlabel, fontsize=12)
-    ax.set_ylabel(ylabel, fontsize=12)
+    ax.set_xlabel(xlabel, fontsize=14)
+    ax.set_ylabel(ylabel, fontsize=14)
 
     sig_marker = "*" if pval < 0.05 else ""
     ax.text(
@@ -847,4 +850,156 @@ def qqplot_lognormal(arr):
     plt.xlabel("Theoretical quantiles")
     plt.ylabel("Sample quantiles")
     plt.title("Q-Q plot for log-normal fit")
+    plt.show()
+
+
+def analyze_rt_angular_error_within_subjects(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    min_trials: int = 10
+) -> dict:
+    """
+    各参加者のRT（対数変換）とangular_errorの個人内Spearman相関を計算し，
+    全参加者にわたって一標本t検定で検定する．
+    """
+    records = []
+    updated = calculate_rt_moving_mean(concat_list, window=3)
+    for pid, df in updated:
+        df = df.copy()
+
+        # angular_errorの算出（既存コードと同様）
+        df["angular_error"] = np.where(
+            df["angular_error_target"].abs() < df["angular_error_distractor"].abs(),
+            df["angular_error_target"].abs(),
+            df["angular_error_distractor"].abs(),
+        )
+
+        work = df.dropna(subset=["angular_error", "rt_moving_mean"]).copy()
+        # work = calculate_rt_moving_mean(work, window=3)
+        # work["log_rt"] = np.log(work["rt"])
+
+        if len(work) < min_trials:
+            continue
+
+        r, p = spearmanr(work["rt_moving_mean"], work["angular_error"])
+        records.append({
+            "pid": pid,
+            "spearman_r": r,
+            "p_value": p,
+            "n_trials": len(work)
+        })
+
+    result_df = pd.DataFrame(records)
+
+    # 相関係数が0と異なるかを一標本t検定
+    t_stat, p_value = ttest_1samp(result_df["spearman_r"].dropna(), popmean=0)
+
+    # 可視化
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    # 相関係数の分布
+    valid_r = result_df["spearman_r"].dropna()
+    axes[0].hist(valid_r, bins=15, edgecolor="black")
+    axes[0].axvline(0, color="red", linestyle="--", label="r=0")
+    axes[0].axvline(valid_r.mean(), color="blue",
+                    linestyle="--", label=f"mean={valid_r.mean():.3f}")
+    axes[0].set_xlabel("Spearman r (log RT vs Angular Error)")
+    axes[0].set_ylabel("Count")
+    axes[0].set_title("Distribution of within-subject correlations")
+    axes[0].legend()
+
+    # 参加者ごとの散布図（代表例）
+    pid_example, df_example = updated[0]
+    df_example = df_example.copy()
+    df_example["angular_error"] = np.where(
+        df_example["angular_error_target"].abs() < df_example["angular_error_distractor"].abs(),
+        df_example["angular_error_target"].abs(),
+        df_example["angular_error_distractor"].abs(),
+    )
+    axes[1].scatter(df_example["rt_moving_mean"], df_example["angular_error"], alpha=0.5)
+    axes[1].set_xlabel("log RT")
+    axes[1].set_ylabel("Angular Error")
+    axes[1].set_title(f"Example participant: {pid_example[:8]}")
+
+    plt.tight_layout()
+    plt.show()
+
+    return {
+        "n_participants": len(result_df),
+        "mean_r": round(result_df["spearman_r"].mean(), 4),
+        "std_r": round(result_df["spearman_r"].std(), 4),
+        "t_stat": round(t_stat, 3),
+        "p_value": round(p_value, 5),
+        "result_df": result_df
+    }
+
+
+def plot_von_mises_value_trajectory(
+    subject: str,
+    trial_results_path: str = "results/rw_learning/continuous/trial_results.csv",
+    results_path: str = "results/rw_learning/continuous/results.csv",
+    save_path: str = None,
+) -> None:
+    """指定した参加者の V_target・V_distractor の試行推移を可視化する。
+
+    Parameters
+    ----------
+    subject : str
+        参加者 ID。
+    trial_results_path : str
+        predict_target_choice_von_mises が出力した trial_results.csv のパス。
+    results_path : str
+        fit_von_mises_map が出力した results.csv のパス。
+    save_path : str or None
+        指定した場合、図をそのパスに保存する。
+    """
+    trial_df = pd.read_csv(trial_results_path)
+    results_df = pd.read_csv(results_path)
+
+    subj_trials = trial_df[trial_df["subject"] == subject].copy()
+    if subj_trials.empty:
+        raise ValueError(f"subject '{subject}' が trial_results に見つかりません。")
+
+    subj_params = results_df[results_df["subject"] == subject]
+    if subj_params.empty:
+        raise ValueError(f"subject '{subject}' が results に見つかりません。")
+
+    alpha = subj_params["alpha"].values[0]
+    beta  = subj_params["beta"].values[0]
+
+    trials = subj_trials["trial"].values
+    v_target     = subj_trials["V_target"].values
+    v_distractor = subj_trials["V_distractor"].values
+    p_target     = subj_trials["p_target"].values
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+
+    ax1.plot(trials, v_target,     color="salmon", linestyle="--",  linewidth=1.5, label="V_target")
+    ax1.plot(trials, v_distractor, color="royalblue", linestyle="--", linewidth=1.5, label="V_distractor")
+    ax1.set_xlabel("Trial", fontsize=12)
+    ax1.set_ylabel("Value", fontsize=12)
+
+    ax2 = ax1.twinx()
+    ax2.plot(trials, p_target, color="black", linewidth=1.5, label="P(target)")
+    ax2.axhline(np.mean(p_target), color="gray", linestyle=":", linewidth=2)
+    ax2.set_ylabel("P(target)", fontsize=12)
+    ax2.set_ylim(0, 1)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=11, loc="upper right")
+
+    param_text = f"α = {alpha:.4f}\nβ = {beta:.4f}"
+    ax1.text(
+        0.02, 0.97, param_text,
+        transform=ax1.transAxes,
+        fontsize=11,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="gray", alpha=0.8),
+    )
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.show()
