@@ -1,7 +1,25 @@
-__pychache__/
+__pycache__/
 *.pyc
 
 .DS_Store
 
+.venv/
 out/
 .claude/
+
+# コード生成物（確定版サマリのみ追跡を維持）
+outputs/*
+!outputs/summaries/
+outputs/summaries/*
+!outputs/summaries/hmm/
+outputs/summaries/hmm/*
+!outputs/summaries/hmm/hmm_summary_decisive_prob.csv
+!outputs/summaries/hmm/gaussian_hmm_summary.csv
+
+# LaTeX 中間生成物
+*.aux
+*.log
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.dvi
