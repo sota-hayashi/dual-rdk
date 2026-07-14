@@ -5,8 +5,8 @@ import pandas as pd
 from scipy.stats import pearsonr
 import statsmodels.api as sm
 
-from io_data.load import combine_subjects
-from stats.metrics import permutation_spearman, permutation_mean_diff
+from dualrdk.io.load import combine_subjects
+from dualrdk.models.metrics import permutation_spearman, permutation_mean_diff
 
 
 # -------- 相関を調べる関数群 --------

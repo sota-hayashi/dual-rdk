@@ -6,8 +6,8 @@ import ast
 import pandas as pd
 import numpy as np
 
-from common.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS, EXCLUDED_SUBJECTS
-from features.behavior import label_if_ooz
+from dualrdk.config import PRACTICE_ROWS, ROWS_PER_SESSION, ROWS_FOR_AWARENESS, EXCLUDED_SUBJECTS
+from dualrdk.features.behavior import label_if_ooz
 
 
 def load_data(path: Path) -> pd.DataFrame:

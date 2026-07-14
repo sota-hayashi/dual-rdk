@@ -26,7 +26,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import beta as beta_dist, gamma as gamma_dist, norm as norm_dist
 
-from stats.q_learning_map import _choice_determine
+from dualrdk.models.q_learning_map import _choice_determine
 
 
 def _neg_log_posterior(

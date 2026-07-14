@@ -3,23 +3,23 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from io_data.utils import combine_subjects
-from stats.hmm_validation import (                                                                                                            
+from dualrdk.io.utils import combine_subjects
+from dualrdk.models.hmm_validation import (                                                                                                            
     run_recovery_analysis, evaluate_recovery_results,                                                                                         
     run_external_validation, print_validation_summary                                                                                         
 )           
 
-from common.config import SUMMARY_PATH, GAUSSIAN_HMM_SUMMARY_PATH
-from io_data.load import (
+from dualrdk.config import SUMMARY_PATH, GAUSSIAN_HMM_SUMMARY_PATH
+from dualrdk.io.load import (
     load_all_concatenated,
     load_categorized_subjects,
     load_hmm_summary,
     load_gaussian_hmm_summary,
 )
-from stats.models import fit_hmm_across_subjects
-from stats.gaussian_hmm import run_gaussian_hmm
-from features.behavior import relabel_hmm_states, compute_exploit_target_prob_by_switch
-from viz.plots import plot_hmm_subject_result, plot_exploit_target_prob_by_switch
+from dualrdk.models.models import fit_hmm_across_subjects
+from dualrdk.models.gaussian_hmm import run_gaussian_hmm
+from dualrdk.features.behavior import relabel_hmm_states, compute_exploit_target_prob_by_switch
+from dualrdk.viz.plots import plot_hmm_subject_result, plot_exploit_target_prob_by_switch
 
 
 def get_subjects_by_hmm_category(summary_path=SUMMARY_PATH, categories=None):

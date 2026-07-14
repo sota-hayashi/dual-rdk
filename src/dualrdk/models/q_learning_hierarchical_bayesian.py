@@ -29,7 +29,7 @@ from tqdm import tqdm
 import emcee
 from scipy.special import expit  # sigmoid
 
-from stats.q_learning_map import _choice_determine
+from dualrdk.models.q_learning_map import _choice_determine
 
 
 # ---------------------------------------------------------------------------

@@ -9,18 +9,18 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from io_data.utils import combine_subjects
-from common.config import RESULTS_DIR
-from features.lapses import (
+from dualrdk.io.utils import combine_subjects
+from dualrdk.config import RESULTS_DIR
+from dualrdk.features.lapses import (
     compute_out_of_zone_ratio_by_rt, 
     compute_out_of_zone_ratio_by_AE, 
     compute_out_of_zone_ratio_of_mean_AE,
     compute_out_of_zone_ratio_by_task_irrelevant_rate,
     compute_out_of_the_zone_ratio_by_rt_moving,
 )
-from features.behavior import summarize_chosen_item_errors, label_if_ooz, calculate_rt_moving_mean
-from io_data.load import load_hmm_summary
-from common.config import TRIALS_PER_SESSION
+from dualrdk.features.behavior import summarize_chosen_item_errors, label_if_ooz, calculate_rt_moving_mean
+from dualrdk.io.load import load_hmm_summary
+from dualrdk.config import TRIALS_PER_SESSION
 
 def plot_frac_ae_target_distractor_by_trial(
     df: pd.DataFrame,

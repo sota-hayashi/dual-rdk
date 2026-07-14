@@ -1,7 +1,7 @@
-from common.config import ONLINE_DATA_DIR
-from io_data.load import load_all_concatenated
-from analysis.pipelines_behavior import run_behavior, get_subjects_by_behavior_data
-from analysis.pipelines_hmm import run_hmm
+from dualrdk.config import ONLINE_DATA_DIR
+from dualrdk.io.load import load_all_concatenated
+from dualrdk.pipelines.pipelines_behavior import run_behavior, get_subjects_by_behavior_data
+from dualrdk.pipelines.pipelines_hmm import run_hmm
 
 
 

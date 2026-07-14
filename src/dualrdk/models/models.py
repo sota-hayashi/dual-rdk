@@ -10,26 +10,26 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning
 import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 
-from io_data.utils import combine_subjects
-from common.config import TRIALS_PER_SESSION, RESULTS_DIR, HMM_SUMMARY_DIR
-from stats.q_learning_bayesian import fit_q_learning_bayesian
-from stats.q_learning_map import fit_q_learning_map, predict_target_choice_probs, _choice_determine
-from stats.q_learning_hierarchical_bayesian import (
+from dualrdk.io.utils import combine_subjects
+from dualrdk.config import TRIALS_PER_SESSION, RESULTS_DIR, HMM_SUMMARY_DIR
+from dualrdk.models.q_learning_bayesian import fit_q_learning_bayesian
+from dualrdk.models.q_learning_map import fit_q_learning_map, predict_target_choice_probs, _choice_determine
+from dualrdk.models.q_learning_hierarchical_bayesian import (
     fit_q_learning_hierarchical_bayesian,
     predict_target_choice_probs as predict_hier_choice_probs,
 )
-from stats.q_learning_ooz_map import (
+from dualrdk.models.q_learning_ooz_map import (
     fit_q_learning_ooz_map,
     predict_target_choice_probs as predict_ooz_choice_probs,
 )
-from stats.rw_hierarchical_bayesian import fit_rw_hierarchical_bayesian
-from stats.von_mises_value_learning_map import fit_von_mises_map, predict_target_choice_von_mises
-from stats.directional_q_learning_map import (
+from dualrdk.models.rw_hierarchical_bayesian import fit_rw_hierarchical_bayesian
+from dualrdk.models.von_mises_value_learning_map import fit_von_mises_map, predict_target_choice_von_mises
+from dualrdk.models.directional_q_learning_map import (
     fit_directional_q_learning_map,
     predict_target_choice_probs as predict_directional_choice_probs,
     _prepare_subject as _prepare_directional_subject,
 )
-from stats.von_mises_value_learning_map import _make_mus, _basis_vec, _value
+from dualrdk.models.von_mises_value_learning_map import _make_mus, _basis_vec, _value
 
 
 def _map_chosen_item(series: pd.Series) -> np.ndarray:

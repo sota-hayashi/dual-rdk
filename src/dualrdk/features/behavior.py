@@ -5,8 +5,8 @@ import pandas as pd
 from scipy.stats import chi2_contingency
 import statsmodels.api as sm
 
-from io_data.utils import combine_subjects
-from stats.metrics import permutation_sign_test, cmh_test_2x2
+from dualrdk.io.utils import combine_subjects
+from dualrdk.models.metrics import permutation_sign_test, cmh_test_2x2
 
 from functools import reduce
 

@@ -3,24 +3,24 @@ import pandas as pd
 from functools import reduce
 from scipy import stats
 
-from features.behavior import (
+from dualrdk.features.behavior import (
     cancatenate_necessary_behavioral_df,
 )
-from stats.metrics import (
+from dualrdk.models.metrics import (
     t_test_reward_points_between_periods,
     t_test_count_target_choice_between_periods,
     t_test_rt_difference_between_target_distractor,
     t_test_Target_Angular_Error_between_periods,
     t_test_Minimum_Angular_Error_between_periods,
 )
-from stats.models import (
+from dualrdk.models.models import (
     evaluate_q_learning,
     run_q_learning_ooz,
     run_directional_q_learning,
     evaluate_directional_q_learning,
 )
-from stats.q_learning_ooz_map import fit_q_learning_ooz_map_group
-from viz.plots import (
+from dualrdk.models.q_learning_ooz_map import fit_q_learning_ooz_map_group
+from dualrdk.viz.plots import (
     plot_exp_obj_with_linear_fit,
 )
 

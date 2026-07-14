@@ -8,8 +8,8 @@ import statsmodels.api as sm
 from statsmodels.formula.api import ols, mixedlm
 
 
-from io_data.utils import combine_subjects
-from common.config import TRIALS_PER_SESSION
+from dualrdk.io.utils import combine_subjects
+from dualrdk.config import TRIALS_PER_SESSION
 
 def permutation_spearman(x: np.ndarray, y: np.ndarray, n_perm: int = 5000, random_state: int = 0) -> Dict[str, float]:
     """Compute Spearman r and permutation p-value (two-sided)."""

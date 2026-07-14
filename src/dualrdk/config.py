@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # リポジトリルート（このファイルの位置基準で解決し、cwd に依存しない）
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 入力データ（読み取り専用）
 DATA_DIR = REPO_ROOT / "data"

@@ -3,10 +3,10 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 
-from features.behavior import calculate_rt_moving_mean, calculate_rt_deviance_mean
-from io_data.load import exclude_trials
+from dualrdk.features.behavior import calculate_rt_moving_mean, calculate_rt_deviance_mean
+from dualrdk.io.load import exclude_trials
 
-from common.config import TRIALS_PER_SESSION
+from dualrdk.config import TRIALS_PER_SESSION
 def compute_out_of_zone_ratio_by_AE(df: pd.DataFrame, n_trial: int = TRIALS_PER_SESSION) -> float:
     """
     各被験者のマインドワンダリング指標（out of the zone）の全試行に対する割合を計算する。

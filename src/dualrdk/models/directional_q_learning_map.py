@@ -37,8 +37,8 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import beta as beta_dist, gamma as gamma_dist, norm as norm_dist
 
-from stats.q_learning_map import _choice_determine
-from stats.von_mises_value_learning_map import _make_mus, _basis_vec, _value
+from dualrdk.models.q_learning_map import _choice_determine
+from dualrdk.models.von_mises_value_learning_map import _make_mus, _basis_vec, _value
 
 
 # ---------------------------------------------------------------------------
