@@ -434,7 +434,7 @@ def run_behavior(
     #     title="Alpha diff vs Target choice rate diff",
     #     xlabel="alpha_diff (learning rate difference)",  # ここは alpha_diff を示すように変更
     #     ylabel="target_choice_rate_diff (early)",  # ここは target_choice_rate_diff を示すように変更
-    #     # save_path="./fig/rt_mean_vs_angular_error.pdf",
+    #     # save_path=FIG_DIR / "rt_mean_vs_angular_error.pdf",
     # )
 
     # # 5) ブートストラップ: 群レベル alpha_diff 検定

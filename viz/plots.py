@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from io_data.utils import combine_subjects
+from common.config import RESULTS_DIR
 from features.lapses import (
     compute_out_of_zone_ratio_by_rt, 
     compute_out_of_zone_ratio_by_AE, 
@@ -935,8 +936,8 @@ def analyze_rt_angular_error_within_subjects(
 
 def plot_von_mises_value_trajectory(
     subject: str,
-    trial_results_path: str = "results/rw_learning/continuous/trial_results.csv",
-    results_path: str = "results/rw_learning/continuous/results.csv",
+    trial_results_path: Path = RESULTS_DIR / "rw_learning/continuous/trial_results.csv",
+    results_path: Path = RESULTS_DIR / "rw_learning/continuous/results.csv",
     save_path: str = None,
 ) -> None:
     """指定した参加者の V_target・V_distractor の試行推移を可視化する。

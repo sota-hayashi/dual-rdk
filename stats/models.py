@@ -11,7 +11,7 @@ import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 
 from io_data.utils import combine_subjects
-from common.config import TRIALS_PER_SESSION
+from common.config import TRIALS_PER_SESSION, RESULTS_DIR, HMM_SUMMARY_DIR
 from stats.q_learning_bayesian import fit_q_learning_bayesian
 from stats.q_learning_map import fit_q_learning_map, predict_target_choice_probs, _choice_determine
 from stats.q_learning_hierarchical_bayesian import (
@@ -244,7 +244,7 @@ def fit_hmm_across_subjects(
     n_iter: int = 100,
     n_init: int = 10,
     random_state: int = 0,
-    save_path: str = "hmm_summary_divided_by_AE.csv"
+    save_path: Path = HMM_SUMMARY_DIR / "hmm_summary_divided_by_AE.csv"
 ) -> Dict[str, object]:
     """
     Fit 2-state categorical HMM for each subject in concat_list.
@@ -676,7 +676,7 @@ def run_q_learning(
     method: Literal["map", "bayesian", "hierarchical_bayesian"] = "map",
     fit: bool = True,
     concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
-    result_dir: str = "results/q_learning",
+    result_dir: Path = RESULTS_DIR / "q_learning",
     # --- MAP固有パラメータ ---
     n_alpha_grid: int = 5,
     n_beta_grid: int = 5,
@@ -879,7 +879,7 @@ def _load(
 def run_q_learning_ooz(
     fit: bool = True,
     concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
-    result_dir: str = "results/q_learning_ooz",
+    result_dir: Path = RESULTS_DIR / "q_learning_ooz",
     n_alpha0_grid: int = 5,
     n_alpha1_grid: int = 5,
     n_beta_grid: int = 5,
@@ -940,7 +940,7 @@ def run_q_learning_ooz(
 def run_directional_q_learning(
     fit: bool = True,
     concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
-    result_dir: str = "results/directional_q_learning",
+    result_dir: Path = RESULTS_DIR / "directional_q_learning",
     N: int = 4,
     kappa: float = 2.0,
     n_alpha0_grid: int = 4,
@@ -1010,7 +1010,7 @@ def run_rw_learning(
     representation: Literal["discrete", "continuous"] = "continuous",
     fit: bool = True,
     concat_list: Optional[List[Tuple[str, pd.DataFrame]]] = None,
-    result_dir: str = "results/rw_learning",
+    result_dir: Path = RESULTS_DIR / "rw_learning",
     # --- discrete（階層ベイズ）固有パラメータ ---
     nwalkers: int = None,
     nburn: int = 2000,

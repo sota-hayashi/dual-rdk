@@ -290,7 +290,7 @@ def run_gaussian_hmm(
     save_path : str or None
         結果をCSVに保存するパス。None の場合は保存しない。
         文字列中に ``{input_type}`` を含む場合、実際の input_type 値で置換される。
-        例: "results/gaussian_hmm_{input_type}.csv"
+        例: RESULTS_DIR / "gaussian_hmm_{input_type}.csv"
     input_type : str
         観測変数の種類。"angular_error"（デフォルト）または "reaction_time"。
 

@@ -12,14 +12,21 @@ EXCLUDED_DATA_DIR = DATA_DIR / "excluded"
 
 # デフォルトのデータパスはJSONに差し替え（必要に応じて変更してください）
 DATA_PATH = ONLINE_DATA_DIR / "6977bd8c4a66002ceaa54c1d.json"
-SUMMARY_PATH = Path("./hmm_summary/hmm_summary_decisive_prob.csv")
+
+# コードが生成する全出力（原則 .gitignore、確定版サマリのみ追跡）
+OUTPUT_DIR = REPO_ROOT / "outputs"
+FIG_DIR = OUTPUT_DIR / "figures"
+RESULTS_DIR = OUTPUT_DIR / "results"
+HMM_SUMMARY_DIR = OUTPUT_DIR / "summaries" / "hmm"
+
+SUMMARY_PATH = HMM_SUMMARY_DIR / "hmm_summary_decisive_prob.csv"
 
 PRACTICE_ROWS = 32
 ROWS_PER_SESSION = 96
 TRIALS_PER_SESSION = 48
 ROWS_FOR_AWARENESS = 48
 
-GAUSSIAN_HMM_SUMMARY_PATH = Path("./hmm_summary/gaussian_hmm_summary.csv")
+GAUSSIAN_HMM_SUMMARY_PATH = HMM_SUMMARY_DIR / "gaussian_hmm_summary.csv"
 
 # 除外参加者リスト
 EXCLUDED_SUBJECTS = [
