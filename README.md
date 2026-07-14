@@ -1,6 +1,39 @@
 # dual-rdk
 Dual-RDK Reward Learning Task（概要）
 
+## リポジトリ構成
+
+```
+dual-rdk/
+├── src/dualrdk/     # 解析用 Python パッケージ（config / io / features / models / viz / pipelines）
+├── scripts/         # 実行エントリポイント（薄いランチャーのみ、ロジック禁止）
+├── data/            # 入力データ（読み取り専用）。詳細は data/README.md
+├── outputs/         # コードが生成する全出力（原則 .gitignore、確定版サマリのみ追跡）
+├── docs/            # 文書（specs: モデル仕様書 / methods: 手法解説 / notes: メモ）
+├── experiment/      # オンライン実験タスクのデプロイ物（HTML / PHP）
+└── reports/         # 論文・報告・発表資産（LaTeX、スライドPDF、動画）
+```
+
+実行方法（cwd 非依存）:
+
+```bash
+python scripts/run_analysis.py        # 解析パイプライン一括実行
+python scripts/run_hmm_validation.py  # HMM 妥当性検証
+```
+
+### 新規ファイルの置き場所ルール
+
+1. **新しいモデルの仕様書** → `docs/specs/<model_name>_spec.md`。ルート直下への `.md` 追加は README のみ許可。
+2. **新しいモデルの実装** → `src/dualrdk/models/`。実行が必要なら `scripts/` に薄いランチャーを追加。
+3. **新しい出力** → `outputs/results/<model_name>/` を出力先とし、パスは必ず `src/dualrdk/config.py` に定数として追加してから参照する。ファイル名へのパラメータ埋め込み（`_ver2.0_A=0.6` 等）は行わず、パラメータ違いはサブディレクトリまたは結果 CSV 内のカラムで表現する。
+4. **新しいデータ** → `data/raw/` 配下に収集フェーズが分かる名前でディレクトリを切り、`data/README.md` に1行追記する。
+5. **発表・論文資産**（PDF・動画・スライド）→ `reports/assets/`。ルート直下へのバイナリ追加は禁止。
+
+詳細な再編の経緯と設計判断は `docs/requirements_folder_structure.md` を参照。
+
+⸻
+
+
 本タスクは、2種類のRDK刺激（白・黒）を同時呈示し、
 報酬が得られやすい方向（High-reward range） と
 報酬が得られにくい方向（Low-reward range） が
