@@ -1,0 +1,96 @@
+% グラフ信号処理 授業課題：自分の研究分野とGSPを1枚スライドにまとめる
+% コンパイル例: lualatex report_gsp_one_slide.tex
+\documentclass[aspectratio=169,11pt]{beamer}
+\usepackage{luatexja}
+\renewcommand{\kanjifamilydefault}{\gtdefault}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usepackage{booktabs}
+
+\usetheme{default}
+\usecolortheme{seagull}
+\setbeamertemplate{navigation symbols}{}
+\definecolor{accent}{RGB}{20,90,160}
+\definecolor{warn}{RGB}{170,60,30}
+\definecolor{hi}{RGB}{225,120,40}
+\definecolor{lo}{RGB}{120,150,200}
+\setbeamercolor{frametitle}{fg=white,bg=accent}
+\setbeamercolor{block title}{fg=white,bg=accent}
+\setbeamercolor{block body}{bg=accent!8}
+\setbeamercolor{block title alerted}{fg=white,bg=warn}
+\setbeamercolor{block body alerted}{bg=warn!8}
+\setbeamerfont{frametitle}{series=\bfseries,size=\normalsize}
+\setbeamersize{text margin left=5mm,text margin right=5mm}
+
+\begin{document}
+\begin{frame}[shrink=10]{グラフ信号処理と自身の研究}
+\footnotesize
+
+\begin{columns}[T]
+\begin{column}{0.60\textwidth}
+\begin{block}{\footnotesize 研究分野・データと，背後の「つながり」}
+\scriptsize
+\textbf{分野}：知覚的意思決定における\textbf{暗黙的報酬学習}の計算論モデリング（Q学習）．
+白・黒2つのランダムドット刺激（RDK）を同時呈示し，運動方向に隠された
+高／低報酬の方向区間を，参加者が気づかないまま報酬から学習する過程を測定する．
+
+\smallskip
+\textbf{データ}：試行系列 $(\theta_t, \text{選択}_t, \text{報酬}_t, \text{RT}_t)$ ＋注意状態ラベル（OOZ）．
+
+\smallskip
+\textbf{つながり（グラフ構造）}：定義域は2つだけで，どちらも規則的．\\
+\textbullet~\textbf{時間}：試行の隣接 $\to$ パスグラフ（＝ただの時系列）\\
+\textbullet~\textbf{方向}：$350^\circ$の隣は$0^\circ$ $\to$ \textbf{リンググラフ}．方向ビンごとの選択率や
+価値マップ $Q(\theta)$ は，その上のグラフ信号として\textbf{定義できる}（右図）
+\end{block}
+\end{column}
+\begin{column}{0.37\textwidth}
+\centering
+\begin{tikzpicture}[scale=0.72]
+  % 報酬構造の4区間（High/Low）
+  \draw[line width=3.5pt,hi]  (0.95,0) arc (0:70:0.95cm);
+  \draw[line width=3.5pt,lo]  (100:0.95) arc (100:160:0.95cm);
+  \draw[line width=3.5pt,hi!60!black] (190:0.95) arc (190:250:0.95cm);
+  \draw[line width=3.5pt,lo!60!black] (280:0.95) arc (280:340:0.95cm);
+  % リンググラフ
+  \foreach \i in {0,...,11}{
+    \draw[gray] ({30*\i}:1.35) -- ({30*(\i+1)}:1.35);
+    \fill[accent] ({30*\i}:1.35) circle (2pt);
+  }
+  % 信号（棒）
+  \foreach \i/\h in {0/0.42,1/0.5,2/0.34,4/0.16,5/0.1,7/0.36,8/0.44,10/0.12,11/0.2}{
+    \draw[line width=1.6pt,warn] ({30*\i}:1.35) -- ({30*\i}:{1.35+\h});
+  }
+  \node[font=\scriptsize] at (0,0) {$\theta$};
+  \node[font=\tiny,align=center] at (0,-2.05) {方向＝リンググラフ，価値マップ $Q(\theta)$＝グラフ信号\\
+  \textcolor{hi}{\rule{2.2mm}{1.2mm}}~高報酬区間\quad \textcolor{lo}{\rule{2.2mm}{1.2mm}}~低報酬区間};
+\end{tikzpicture}
+\end{column}
+\end{columns}
+
+\vspace{0.5mm}
+\begin{block}{\footnotesize GFT・フィルタリング・サンプリング・グラフ推定との関係：すべて「定義可能だが，古典手法に退化」}
+\centering\tiny
+\begin{tabular}{@{}lll@{}}
+\toprule
+項目 & 形式的には & 実際には（退化先） \\
+\midrule
+GFT & リンググラフ上の $Q(\theta)$ を展開できる & リングのGFT基底は\textbf{DFTと一致} $\to$ 円周統計で済む \\
+フィルタリング & Q学習の汎化（RBF）＝低域通過グラフフィルタ & 円周上の\textbf{カーネル平滑化}として記述済み \\
+サンプリング & 1試行＝円周上の1点の雑音標本から信号復元 & 規則格子上の\textbf{古典的サンプリング定理}に帰着 \\
+グラフ推定・学習 & ―― & \textbf{不要}：円周という位相は幾何的に既知．未知なのは信号の方 \\
+\bottomrule
+\end{tabular}
+\end{block}
+
+\vspace{0.5mm}
+\begin{alertblock}{\footnotesize 結論：関係が薄い理由と，関係が生まれる境界条件}
+\tiny
+GSPの付加価値は\textbf{定義域の不規則性}から生まれるが，私のデータの定義域は時間（直線）と方向（円周）という規則的な
+定義域であり，GSPの道具はすべて既知の古典手法に退化するため，適用しても解析力は増えない．
+逆に，刺激が物理パラメータで並ばない任意の対象集合（不規則な類似度グラフ）になるか，EEGのような不規則配置の
+センサ計測を導入したとき，初めてGSPは古典手法で代替できない道具になる．
+\end{alertblock}
+\end{frame}
+\end{document}
