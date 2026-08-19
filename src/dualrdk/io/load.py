@@ -67,6 +67,7 @@ def concatenate_trials(df: pd.DataFrame) -> pd.DataFrame:
             raise ValueError(f"Expected 2 rows per trial for {key}, found {len(group_sorted)}")
         base = group_sorted.iloc[0].copy()
         follow = group_sorted.iloc[1]
+        base["session_rotation"] = follow.get("rotation_angle")
         base["reward_points"] = follow.get("reward_points")
         base["target_direction"] = follow.get("target_direction")
         # distractor_direction is only present in the base (stimulus) row, not the follow (response) row
@@ -184,9 +185,18 @@ def load_and_prepare(path: Path) -> pd.DataFrame:
 
 def load_all_concatenated(
     data_dir: Path,
-    subjects_include: List[str] = None
+    subjects_include: List[str] = None,
+    apply_exclusion_list: bool = True,
     ) -> List[Tuple[str, pd.DataFrame]]:
-    """Load all csv/json in data_dir and return list of (subject_id, concatenated_df)."""
+    """Load all csv/json in data_dir and return list of (subject_id, concatenated_df).
+
+    Parameters
+    ----------
+    apply_exclusion_list : bool
+        False にすると config.EXCLUDED_SUBJECTS を適用せず全参加者を読む。
+        除外基準そのものを検証・再計算するとき（tests/test_exclusions.py）に
+        使う。通常の解析では True のままにすること。
+    """
     datasets_practice = []
     datasets_learning = []
     datasets_awareness = []
@@ -194,7 +204,7 @@ def load_all_concatenated(
         subj_id = file_path.stem
         if subjects_include is not None and subj_id not in subjects_include:
             continue
-        if subj_id in EXCLUDED_SUBJECTS:
+        if apply_exclusion_list and subj_id in EXCLUDED_SUBJECTS:
             # print(f"Excluding subject {subj_id}")
             continue
         try:

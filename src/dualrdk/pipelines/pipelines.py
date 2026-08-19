@@ -12,17 +12,13 @@ def run_default():
         subjects_include=None
     )
 
-    # 2) 行動基準で被験者を抽出
+    # 2) 行動指標の計算（除外は 1) のロード時点で適用済み）
+    #
+    # 以前はここで rt_cv 上位10%を分離し、3) で subjects_include を指定して
+    # 再ロードしていた。その除外は config.EXCLUDED_SUBJECTS に凍結したため、
+    # 再ロードは同じ被験者集合を読み直すだけの無駄になったので削除した。
+    # label_if_ooz の群閾値も同一集合から計算されるため、結果は変わらない。
     subjects_behavior_on, subjects_behavior_off, behavioral_df = get_subjects_by_behavior_data(all_data_learning, threshold=1)
-
-    # 3) フィルタして再ロード
-    subjects = subjects_behavior_on
-    if subjects:
-        all_data_practice, all_data_learning, all_data_awareness = load_all_concatenated(
-            ONLINE_DATA_DIR,
-            subjects_include=subjects
-        )
-        behavioral_df = None  # データ再ロード後は再計算が必要
 
     # 4) HMM解析
     hmm_df = run_hmm(

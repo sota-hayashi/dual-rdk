@@ -149,6 +149,30 @@ def compute_RT_coefficient_of_variation(
         results.append((subj_id, cv))
     return pd.DataFrame(results, columns=["subject", "rt_cv"])
 
+def select_subjects_by_rt_cv(
+    concat_list: List[Tuple[str, pd.DataFrame]],
+    q: float = 0.90,
+) -> Tuple[List[str], List[str], float]:
+    """rt_cv の上位 (1-q) を分離する（参加者除外基準4の再現手続き）。
+
+    この基準は標本内の相対位置で決まるため、ロード時に動的に適用すると
+    データが変わるたびに除外対象と N が静かに入れ替わる。そのため実際の
+    除外は config.EXCLUDED_SUBJECTS に凍結してあり、この関数はその凍結値を
+    生成した手続きを保存し、再計算との一致を検証するために存在する。
+
+    Returns
+    -------
+    kept : rt_cv < 分位点 の被験者ID
+    excluded : rt_cv >= 分位点 の被験者ID（rt_cv 昇順）
+    threshold : 分位点の値
+    """
+    cv_df = compute_RT_coefficient_of_variation(concat_list).sort_values("rt_cv")
+    threshold = float(cv_df["rt_cv"].quantile(q))
+    kept = cv_df.loc[cv_df["rt_cv"] < threshold, "subject"].tolist()
+    excluded = cv_df.loc[cv_df["rt_cv"] >= threshold, "subject"].tolist()
+    return kept, excluded, threshold
+
+
 def compute_minimum_AE_standard_deviance(
     concat_list: List[Tuple[str, pd.DataFrame]],
 ) -> List[Tuple[str, float]]:

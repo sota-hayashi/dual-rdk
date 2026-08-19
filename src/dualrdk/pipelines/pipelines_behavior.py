@@ -29,22 +29,24 @@ def get_subjects_by_behavior_data(
     all_data_learning,
     threshold: float = 0.8
 ):
-    """
-    行動指標に基づいて被験者を抽出する。
-    rt_cv の上位10%を分離する。
+    """行動指標を計算し、**全参加者を通して**返す。
+
+    以前はここで rt_cv 上位10%を分離していたが、この除外は参加者除外基準4
+    そのものであり、他の3基準と同じく config.EXCLUDED_SUBJECTS に凍結した。
+    ロード時点で既に適用済みなので、ここで再度分離すると二重適用になる。
+
+    再現手続きは features.behavior.select_subjects_by_rt_cv() に保存してあり、
+    凍結値との一致は tests/test_exclusions.py で検証している。
+
+    Returns
+    -------
+    subjects_all : 全参加者ID（除外は適用済み）
+    subjects_excluded : 常に空リスト（後方互換のため残す）
+    behavioral_df : 行動指標の要約
     """
     behavioral_df = cancatenate_necessary_behavioral_df(all_data_learning)
-
-    subjects_behavior_1 = behavioral_df.loc[
-        (behavioral_df["rt_cv"] < behavioral_df["rt_cv"].quantile(0.90)),
-        "subject"
-    ].tolist()
-    subjects_behavior_2 = behavioral_df.loc[
-        (behavioral_df["rt_cv"] >= behavioral_df["rt_cv"].quantile(0.90)),
-        "subject"
-    ].tolist()
-
-    return subjects_behavior_1, subjects_behavior_2, behavioral_df
+    subjects_all = behavioral_df["subject"].tolist()
+    return subjects_all, [], behavioral_df
 
 
 # =============================================================================
@@ -70,7 +72,7 @@ def prepare_analysis_df(
         Q-learningモデル評価指標
     """
     # Q-learning fitting
-    results_df, _ = run_q_learning_ooz(fit=False, concat_list=all_data_learning)
+    results_df, _ = run_directional_q_learning(fit=False, concat_list=all_data_learning)
     metrics = evaluate_q_learning(
         method="ooz_map",
         concat_list=all_data_learning,
