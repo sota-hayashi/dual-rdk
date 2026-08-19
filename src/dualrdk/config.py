@@ -57,4 +57,22 @@ EXCLUDED_SUBJECTS = [
     # learningとawarenessの両方でターゲット選択割合の向上傾向が確認されている被験者
     "6977bd8c4a66002ceaa54c1d",
     "6978e94c86ef2c792e089759",
+    # 反応時間の変動が大きい被験者（rt_cv が 0.90 分位点以上）
+    #
+    # この基準は「標本内の相対位置」で決まるため、ロード時に動的に適用すると
+    # データを 1 名足すだけで除外対象と N が静かに入れ替わる。そこで上記 19 名を
+    # 除外した 61 名に対して features.behavior.select_subjects_by_rt_cv() を実行し、
+    # その出力を凍結した（閾値 rt_cv = 0.066897）。
+    # 凍結値と再計算値の一致は tests/test_exclusions.py で検証している。
+    "697ca9cfd08ef9e2ffd194c9",  # rt_cv=0.0669
+    "666408427db5e38fe0ea1736",  # rt_cv=0.0724
+    "5d617ba9364f9a0019f1dac3",  # rt_cv=0.0784
+    "650f65aac58fe4dc08bbe23f",  # rt_cv=0.0820
+    "682b23f345fc428cc9586a06",  # rt_cv=0.0845
+    "673f4f8fa5b4a47492e30aea",  # rt_cv=0.0928
+    "65fb13bebfa339f73b4cf76a",  # rt_cv=0.0981
 ]
+
+# rt_cv 基準の凍結値（tests/test_exclusions.py が参照する）
+RT_CV_EXCLUDED_SUBJECTS = EXCLUDED_SUBJECTS[-7:]
+RT_CV_EXCLUSION_QUANTILE = 0.90
