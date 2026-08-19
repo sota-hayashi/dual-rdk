@@ -7,6 +7,10 @@ __pycache__/
 out/
 .claude/
 
+*.txt
+*.toml
+PKG-INFO
+
 # コード生成物（確定版サマリのみ追跡を維持）
 outputs/*
 !outputs/summaries/
